@@ -124,6 +124,47 @@ Prompts may be plan-gated. See [Pricing](https://www.qubiton.com/pricing) for de
 2. Navigate to **API Keys** and generate a new key.
 3. Copy the key -- you will need it when configuring the destination.
 
+## Installation
+
+### Option 1: abapGit (Recommended)
+
+[abapGit](https://abapGit.org) is the de facto package manager for ABAP open source.
+
+1. Install abapGit if you haven't already ([installation guide](https://docs.abapgit.org/guide-install.html)).
+2. Open transaction **ZABAPGIT** (standalone) or **SE38 → ZABAPGIT_STANDALONE** (developer edition).
+3. Click **+ Online** and enter the repository URL:
+   ```
+   https://github.com/qubitonhq/qubiton-sap.git
+   ```
+4. Select a target package (e.g., `ZQUBITON`) and click **Pull**.
+5. Activate all imported objects.
+
+This imports all classes, message class, config tables, authorization object, and application log object in one step.
+
+### Option 2: Manual (SE24)
+
+If abapGit is not available in your system:
+
+1. Download the latest [release](https://github.com/qubitonhq/qubiton-sap/releases) from GitHub.
+2. Create each class in **SE24** (Class Builder):
+   - `ZCL_QUBITON` — Core API client (create first)
+   - `ZCX_QUBITON` — Exception class
+   - `ZCL_QUBITON_SCREEN` — Screen enhancement orchestrator
+   - `ZCL_QUBITON_BADI_VENDOR` — Vendor BAdI implementation
+   - `ZCL_QUBITON_BADI_CUSTOMER` — Customer BAdI implementation
+   - `ZCL_QUBITON_BADI_BP` — Business Partner BAdI implementation
+3. Create the message class `ZCL_QUBITON_MSG` in **SE91**.
+4. Create config tables `ZQUBITON_CONFIG` and `ZQUBITON_SCREEN_CFG` in **SE11**.
+5. Create the authorization object `ZQUBITON_API` in **SU21**.
+6. Activate all objects in dependency order (exception class → core → screen → BAdIs).
+
+### Option 3: abapGit via ADT (Eclipse)
+
+1. In Eclipse with ADT, open **Window > Show View > Other > abapGit Repositories**.
+2. Click **+** (Link abapGit Repository).
+3. Enter `https://github.com/qubitonhq/qubiton-sap.git`.
+4. Select target package and pull.
+
 ## Setup Options
 
 ### Option A: SAP BTP Destination (Cloud)
