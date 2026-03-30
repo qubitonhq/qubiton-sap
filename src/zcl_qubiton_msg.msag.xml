@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_MSAG" serializer_version="v2.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <T100A>
+    <ARBGB>ZCL_QUBITON_MSG</ARBGB>
+    <MASTERLANG>E</MASTERLANG>
+    <STEXT>QubitOn API Messages</STEXT>
+   </T100A>
+   <T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZCL_QUBITON_MSG</ARBGB>
+     <MSGNR>001</MSGNR>
+     <TEXT>&amp;1: passed</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZCL_QUBITON_MSG</ARBGB>
+     <MSGNR>002</MSGNR>
+     <TEXT>&amp;1: failed</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZCL_QUBITON_MSG</ARBGB>
+     <MSGNR>003</MSGNR>
+     <TEXT>&amp;1: API returned empty response</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZCL_QUBITON_MSG</ARBGB>
+     <MSGNR>004</MSGNR>
+     <TEXT>&amp;1: response missing "&amp;2" field</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZCL_QUBITON_MSG</ARBGB>
+     <MSGNR>005</MSGNR>
+     <TEXT>Failed to create HTTP client for destination "&amp;1"</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZCL_QUBITON_MSG</ARBGB>
+     <MSGNR>006</MSGNR>
+     <TEXT>&amp;1 &amp;2: send failed (sy-subrc=&amp;3)</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZCL_QUBITON_MSG</ARBGB>
+     <MSGNR>007</MSGNR>
+     <TEXT>&amp;1 &amp;2: receive failed (sy-subrc=&amp;3)</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZCL_QUBITON_MSG</ARBGB>
+     <MSGNR>008</MSGNR>
+     <TEXT>&amp;1 &amp;2: HTTP &amp;3 &amp;4</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZCL_QUBITON_MSG</ARBGB>
+     <MSGNR>009</MSGNR>
+     <TEXT>Authorization check failed for QubitOn API</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZCL_QUBITON_MSG</ARBGB>
+     <MSGNR>010</MSGNR>
+     <TEXT>QubitOn API call: &amp;1 &amp;2 completed in &amp;3 ms (HTTP &amp;4)</TEXT>
+    </T100>
+   </T100>
+  </asx:values>
+ </asx:abap>
+</abapGit>

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_TABL" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <DD02V>
+    <TABNAME>ZQUBITON_SCREEN_CFG</TABNAME>
+    <DDLANGUAGE>E</DDLANGUAGE>
+    <TABCLASS>TRANSP</TABCLASS>
+    <DDTEXT>QubitOn Screen Enhancement Configuration</DDTEXT>
+    <MATEFLAG>X</MATEFLAG>
+    <CONTFLAG>C</CONTFLAG>
+    <EXCLASS>4</EXCLASS>
+   </DD02V>
+   <DD09L>
+    <TABNAME>ZQUBITON_SCREEN_CFG</TABNAME>
+    <AS4LOCAL>A</AS4LOCAL>
+    <TABKAT>0</TABKAT>
+    <TABART>APPL0</TABART>
+    <BUFALLOW>N</BUFALLOW>
+   </DD09L>
+   <DD03P>
+    <DD03P>
+     <FIELDNAME>MANDT</FIELDNAME>
+     <KEYFLAG>X</KEYFLAG>
+     <ROLLNAME>MANDT</ROLLNAME>
+     <ADMINFIELD>0</ADMINFIELD>
+     <NOTNULL>X</NOTNULL>
+     <COMPTYPE>E</COMPTYPE>
+    </DD03P>
+    <DD03P>
+     <FIELDNAME>TCODE</FIELDNAME>
+     <KEYFLAG>X</KEYFLAG>
+     <ROLLNAME>TCODE</ROLLNAME>
+     <ADMINFIELD>0</ADMINFIELD>
+     <NOTNULL>X</NOTNULL>
+     <COMPTYPE>E</COMPTYPE>
+    </DD03P>
+    <DD03P>
+     <FIELDNAME>VAL_TYPE</FIELDNAME>
+     <KEYFLAG>X</KEYFLAG>
+     <ADMINFIELD>0</ADMINFIELD>
+     <INTTYPE>C</INTTYPE>
+     <INTLEN>000010</INTLEN>
+     <DATATYPE>CHAR</DATATYPE>
+     <LENG>000010</LENG>
+     <NOTNULL>X</NOTNULL>
+     <DDTEXT>Validation Type (TAX, BANK, ADDRESS, SANCTION, EMAIL, PHONE)</DDTEXT>
+    </DD03P>
+    <DD03P>
+     <FIELDNAME>ACTIVE</FIELDNAME>
+     <ADMINFIELD>0</ADMINFIELD>
+     <INTTYPE>C</INTTYPE>
+     <INTLEN>000001</INTLEN>
+     <DATATYPE>CHAR</DATATYPE>
+     <LENG>000001</LENG>
+     <DDTEXT>Active Flag (X = active)</DDTEXT>
+    </DD03P>
+    <DD03P>
+     <FIELDNAME>ON_INVALID</FIELDNAME>
+     <ADMINFIELD>0</ADMINFIELD>
+     <INTTYPE>C</INTTYPE>
+     <INTLEN>000001</INTLEN>
+     <DATATYPE>CHAR</DATATYPE>
+     <LENG>000001</LENG>
+     <DDTEXT>On Validation Failure: E=stop, W=warn, S=silent</DDTEXT>
+    </DD03P>
+    <DD03P>
+     <FIELDNAME>ON_ERROR</FIELDNAME>
+     <ADMINFIELD>0</ADMINFIELD>
+     <INTTYPE>C</INTTYPE>
+     <INTLEN>000001</INTLEN>
+     <DATATYPE>CHAR</DATATYPE>
+     <LENG>000001</LENG>
+     <DDTEXT>On API Error: E=stop, W=warn, S=silent</DDTEXT>
+    </DD03P>
+    <DD03P>
+     <FIELDNAME>COUNTRY_FILTER</FIELDNAME>
+     <ADMINFIELD>0</ADMINFIELD>
+     <ROLLNAME>LAND1</ROLLNAME>
+     <COMPTYPE>E</COMPTYPE>
+     <DDTEXT>Country Filter (blank = all countries)</DDTEXT>
+    </DD03P>
+   </DD03P>
+  </asx:values>
+ </asx:abap>
+</abapGit>

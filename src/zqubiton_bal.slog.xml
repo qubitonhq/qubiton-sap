@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_SLOG" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <HEADER>
+    <OBJECT>ZQUBITON</OBJECT>
+    <OBJECTTEXT>QubitOn API Connector</OBJECTTEXT>
+   </HEADER>
+   <SUBOBJECTS>
+    <BALSUB>
+     <OBJECT>ZQUBITON</OBJECT>
+     <SUBOBJECT>ZAPI_CALL</SUBOBJECT>
+     <SUBOBJTXT>QubitOn API Call Log</SUBOBJTXT>
+    </BALSUB>
+   </SUBOBJECTS>
+  </asx:values>
+ </asx:abap>
+</abapGit>

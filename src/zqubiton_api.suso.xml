@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_SUSO" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <OBJCT>ZQUBITON_API</OBJCT>
+   <OBJTX>QubitOn API Authorization</OBJTX>
+   <FIELDS>
+    <TACTZ>
+     <BRTEFLD>ZQBT_ACTVT</BRTEFLD>
+     <DBFIELD>ACTIV_AUTH</DBFIELD>
+     <FTEXT>Activity</FTEXT>
+    </TACTZ>
+   </FIELDS>
+   <TEXTS>
+    <TOBJT>
+     <OBJCT>ZQUBITON_API</OBJCT>
+     <LANGU>E</LANGU>
+     <TTEXT>QubitOn API Authorization</TTEXT>
+    </TOBJT>
+   </TEXTS>
+   <FIELDTEXTS>
+    <TACTZ>
+     <BRTEFLD>ZQBT_ACTVT</BRTEFLD>
+     <LANGU>E</LANGU>
+     <FTEXT>Activity</FTEXT>
+    </TACTZ>
+   </FIELDTEXTS>
+   <VALUES>
+    <USVAL>
+     <BRTEFLD>ZQBT_ACTVT</BRTEFLD>
+     <LOW>01</LOW>
+     <VALTEXT>Validate (address, tax, bank, email, phone, peppol, NPI, etc.)</VALTEXT>
+    </USVAL>
+    <USVAL>
+     <BRTEFLD>ZQBT_ACTVT</BRTEFLD>
+     <LOW>02</LOW>
+     <VALTEXT>Lookup (business reg, certification, DUNS, hierarchy, credit, etc.)</VALTEXT>
+    </USVAL>
+    <USVAL>
+     <BRTEFLD>ZQBT_ACTVT</BRTEFLD>
+     <LOW>03</LOW>
+     <VALTEXT>Screen (sanctions, PEP, directors, EPA, healthcare exclusion)</VALTEXT>
+    </USVAL>
+    <USVAL>
+     <BRTEFLD>ZQBT_ACTVT</BRTEFLD>
+     <LOW>04</LOW>
+     <VALTEXT>Risk (bankruptcy, credit score, fail rate, entity risk, ESG)</VALTEXT>
+    </USVAL>
+    <USVAL>
+     <BRTEFLD>ZQBT_ACTVT</BRTEFLD>
+     <LOW>05</LOW>
+     <VALTEXT>Financial (payment terms, exchange rates)</VALTEXT>
+    </USVAL>
+    <USVAL>
+     <BRTEFLD>ZQBT_ACTVT</BRTEFLD>
+     <LOW>06</LOW>
+     <VALTEXT>Reference data (tax formats, peppol schemes)</VALTEXT>
+    </USVAL>
+   </VALUES>
+  </asx:values>
+ </asx:abap>
+</abapGit>

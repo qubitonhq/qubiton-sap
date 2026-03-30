@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_DOCU" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <LINES>
+    <TLINE>
+     <TDFORMAT>U1</TDFORMAT>
+     <TDLINE>QubitOn API Client (ZCL_QUBITON)</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>AS</TDFORMAT>
+     <TDLINE/>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>ABAP class for calling the QubitOn API from SAP S/4HANA, ECC, or BTP.</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>Provides 41 methods for address validation, tax ID verification, bank</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>account validation, sanctions screening, risk assessment, and more.</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>AS</TDFORMAT>
+     <TDLINE/>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>U2</TDFORMAT>
+     <TDLINE>Prerequisites</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>AS</TDFORMAT>
+     <TDLINE/>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>B1</TDFORMAT>
+     <TDLINE>RFC destination "QubitOn" of type G (HTTP) pointing to api.qubiton.com:443</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>B1</TDFORMAT>
+     <TDLINE>SSL certificate imported via STRUST (or BTP Destination service)</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>B1</TDFORMAT>
+     <TDLINE>Valid QubitOn API key (register at www.qubiton.com)</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>B1</TDFORMAT>
+     <TDLINE>Authorization object ZQUBITON_API (optional, via iv_check_auth; falls back to S_RFC)</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>AS</TDFORMAT>
+     <TDLINE/>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>U2</TDFORMAT>
+     <TDLINE>Configuration</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>AS</TDFORMAT>
+     <TDLINE/>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>The constructor accepts configurable error handling modes:</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>B1</TDFORMAT>
+     <TDLINE>iv_on_error = 'E' (stop), 'W' (warn, default), 'S' (silent)</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>B1</TDFORMAT>
+     <TDLINE>iv_on_invalid = 'E' (stop), 'W' (warn, default), 'S' (silent)</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>B1</TDFORMAT>
+     <TDLINE>iv_check_auth = abap_true to enforce S_RFC authorization check</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>AS</TDFORMAT>
+     <TDLINE/>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>U2</TDFORMAT>
+     <TDLINE>Usage Example</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>AS</TDFORMAT>
+     <TDLINE/>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>DATA(lo_api) = NEW zcl_qubiton( iv_apikey = 'your-key' ).</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>TRY.</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>    DATA(lv_result) = lo_api->validate_address(</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>      iv_country = 'US' iv_city = 'Springfield' ).</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>  CATCH zcx_qubiton INTO DATA(lx_err).</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>    WRITE: / lx_err->get_text( ).</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>ENDTRY.</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>AS</TDFORMAT>
+     <TDLINE/>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>U2</TDFORMAT>
+     <TDLINE>Application Logging</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>AS</TDFORMAT>
+     <TDLINE/>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>All API calls are logged to SAP Application Log (SLG1) under object</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>ZQUBITON / subobject ZAPI_CALL. View logs via transaction SLG1.</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>Register the log object via transaction SLG0 before first use.</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>AS</TDFORMAT>
+     <TDLINE/>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>U2</TDFORMAT>
+     <TDLINE>API Coverage</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>AS</TDFORMAT>
+     <TDLINE/>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>41 methods: address, tax, bank, email, phone, business registration,</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>Peppol, sanctions, PEP, directors, EPA, healthcare, bankruptcy, credit,</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>ESG, domain security, IP quality, UBO, hierarchy, DUNS, NPI, Medpass,</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>DOT carrier, India identity, certification, classification, payment</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>terms, exchange rates, Ariba supplier, gender identification.</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>AS</TDFORMAT>
+     <TDLINE/>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>U2</TDFORMAT>
+     <TDLINE>Support</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>AS</TDFORMAT>
+     <TDLINE/>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>Documentation: https://www.qubiton.com/docs</TDLINE>
+    </TLINE>
+    <TLINE>
+     <TDFORMAT>  </TDFORMAT>
+     <TDLINE>API Key: https://www.qubiton.com/auth/register</TDLINE>
+    </TLINE>
+   </LINES>
+  </asx:values>
+ </asx:abap>
+</abapGit>

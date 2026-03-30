@@ -1,0 +1,8 @@
+{
+  "Name": "QubitOn",
+  "Type": "HTTP",
+  "URL": "https://api.qubiton.com",
+  "ProxyType": "Internet",
+  "Authentication": "NoAuthentication",
+  "URL.headers.apikey": "YOUR_API_KEY"
+}
