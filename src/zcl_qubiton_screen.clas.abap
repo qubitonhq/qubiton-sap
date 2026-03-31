@@ -752,6 +752,9 @@ CLASS zcl_qubiton_screen IMPLEMENTATION.
     IF rs_result-success = abap_true AND rs_result-field_missing = abap_false.
       rs_result-is_valid = COND #( WHEN rs_result-is_valid = abap_true THEN abap_false
                                     ELSE abap_true ).
+      rs_result-message = COND #( WHEN rs_result-is_valid = abap_true
+                                   THEN 'Sanctions: clear'
+                                   ELSE 'Sanctions: match found' ).
     ENDIF.
   ENDMETHOD.
 

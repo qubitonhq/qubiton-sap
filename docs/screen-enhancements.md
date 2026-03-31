@@ -18,7 +18,7 @@ The connector includes pre-built BAdI implementations that automatically validat
 | **BANK** | BANKN / IBAN / SWIFT / BANKL | BANKN / IBAN / SWIFT / BANKL | BANKN / IBAN / SWIFT / BANKL | Bank account, routing/sort code, IBAN, SWIFT validation |
 | **ADDRESS** | STRAS / ORT01 / REGIO / PSTLZ | STRAS / ORT01 / REGIO / PSTLZ | STREET / CITY / REGION / POSTL_COD1 | Postal address validation (249 countries) |
 | **SANCTION** | NAME1 + address fields | NAME1 + address fields | NAME_ORG1/NAME_LAST + address | OFAC, EU, UN sanctions/prohibited list screening |
-| **EMAIL** | ADR6 (SMTP_ADDR) | ADR6 (SMTP_ADDR) | *(not available via BAdI)* | Email deliverability validation |
+| **EMAIL** | ADR6 (SMTP_ADDR) | ADR6 (SMTP_ADDR) | *(BAdI lacks SMTP data — skips unless caller populates)* | Email deliverability validation |
 | **PHONE** | TELF1 | TELF1 | TEL_NUMBER | Phone number carrier validation |
 
 ## How It Works
@@ -116,20 +116,22 @@ Stores the API key and other settings. Maintained via SM30.
 
 The orchestrator automatically maps SAP country codes to the correct QubitOn tax type:
 
-| Country | Tax Type | Field Preference |
-|---------|----------|-----------------|
-| US | EIN | STCD1 -> STCEG |
-| DE, FR, IT, NL, ... (EU) | VAT | STCEG -> STCD1 |
-| BR | CNPJ | STCD1 -> STCEG |
-| IN | GSTIN | STCD1 -> STCEG |
-| AU | ABN | STCD1 -> STCEG |
-| CA | BN | STCD1 -> STCEG |
-| GB | UTR | STCD1 -> STCEG |
-| MX | RFC | STCD1 -> STCEG |
-| JP | CN | STCD1 -> STCEG |
-| KR | BRN | STCD1 -> STCEG |
-| RU | INN | STCD1 -> STCEG |
-| ZA | TIN | STCD1 -> STCEG |
+| Country | Tax Type |
+|---------|----------|
+| US | EIN |
+| DE, FR, IT, NL, ... (EU) | VAT |
+| BR | CNPJ |
+| IN | GSTIN |
+| AU | ABN |
+| CA | BN |
+| GB | UTR |
+| MX | RFC |
+| JP | CN |
+| KR | BRN |
+| RU | INN |
+| ZA | TIN |
+
+Field priority is the same for all countries: **STCEG → STCD1 → STCD2** (first non-empty field wins).
 
 For Business Partner, the explicit `TAXTYPE` field from `BPTAX` is used if populated. Otherwise, country-based detection applies.
 
