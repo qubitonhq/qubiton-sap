@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+
+# IDE
+.project
+.settings/
+.metadata
+.adt/
+
+# ABAP
+*.bak
+*.tmp
+
+# Eclipse ADT
+.buildpath
+.classpath

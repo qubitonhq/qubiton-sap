@@ -62,6 +62,16 @@ CLASS zcl_qubiton_screen_test DEFINITION
     METHODS config_injection          FOR TESTING.
     METHODS config_country_filter     FOR TESTING.
 
+    " ── Phone Skip Logic ──────────────────────────────────────────────────
+    METHODS vendor_phone_skip_empty   FOR TESTING.
+    METHODS customer_phone_skip_empty FOR TESTING.
+    METHODS bp_phone_skip_empty       FOR TESTING.
+
+    " ── Email Skip Logic ──────────────────────────────────────────────────
+    METHODS vendor_email_skip_empty   FOR TESTING.
+    METHODS customer_email_skip_empty FOR TESTING.
+    METHODS bp_email_skip_empty       FOR TESTING.
+
     " ── Sanctions Skip Logic ──────────────────────────────────────────────
     METHODS vendor_sanctions_skip     FOR TESTING.
     METHODS customer_sanctions_skip   FOR TESTING.
@@ -486,6 +496,74 @@ CLASS zcl_qubiton_screen_test IMPLEMENTATION.
 
   " ═══════════════════════════════════════════════════════════════════════
   " Constants
+  " ═══════════════════════════════════════════════════════════════════════
+
+  " ═══════════════════════════════════════════════════════════════════════
+  " Phone Skip Logic
+  " ═══════════════════════════════════════════════════════════════════════
+
+  METHOD vendor_phone_skip_empty.
+    DATA(ls_vendor) = VALUE zcl_qubiton_screen=>ty_vendor_data( land1 = 'US' ).
+
+    DATA(ls_result) = mo_cut->validate_vendor_phone( ls_vendor ).
+
+    cl_abap_unit_assert=>assert_equals( act = ls_result-success  exp = abap_true ).
+    cl_abap_unit_assert=>assert_char_cp( act = ls_result-message exp = '*skipped*' ).
+  ENDMETHOD.
+
+  METHOD customer_phone_skip_empty.
+    DATA(ls_cust) = VALUE zcl_qubiton_screen=>ty_customer_data( land1 = 'DE' ).
+
+    DATA(ls_result) = mo_cut->validate_customer_phone( ls_cust ).
+
+    cl_abap_unit_assert=>assert_equals( act = ls_result-success  exp = abap_true ).
+    cl_abap_unit_assert=>assert_char_cp( act = ls_result-message exp = '*skipped*' ).
+  ENDMETHOD.
+
+  METHOD bp_phone_skip_empty.
+    DATA(ls_bp) = VALUE zcl_qubiton_screen=>ty_bp_data( country = 'US' ).
+
+    DATA(ls_result) = mo_cut->validate_bp_phone( ls_bp ).
+
+    cl_abap_unit_assert=>assert_equals( act = ls_result-success  exp = abap_true ).
+    cl_abap_unit_assert=>assert_char_cp( act = ls_result-message exp = '*skipped*' ).
+  ENDMETHOD.
+
+
+  " ═══════════════════════════════════════════════════════════════════════
+  " Email Skip Logic
+  " ═══════════════════════════════════════════════════════════════════════
+
+  METHOD vendor_email_skip_empty.
+    DATA(ls_vendor) = VALUE zcl_qubiton_screen=>ty_vendor_data( land1 = 'US' ).
+
+    DATA(ls_result) = mo_cut->validate_vendor_email( ls_vendor ).
+
+    cl_abap_unit_assert=>assert_equals( act = ls_result-success  exp = abap_true ).
+    cl_abap_unit_assert=>assert_char_cp( act = ls_result-message exp = '*skipped*' ).
+  ENDMETHOD.
+
+  METHOD customer_email_skip_empty.
+    DATA(ls_cust) = VALUE zcl_qubiton_screen=>ty_customer_data( land1 = 'DE' ).
+
+    DATA(ls_result) = mo_cut->validate_customer_email( ls_cust ).
+
+    cl_abap_unit_assert=>assert_equals( act = ls_result-success  exp = abap_true ).
+    cl_abap_unit_assert=>assert_char_cp( act = ls_result-message exp = '*skipped*' ).
+  ENDMETHOD.
+
+  METHOD bp_email_skip_empty.
+    DATA(ls_bp) = VALUE zcl_qubiton_screen=>ty_bp_data( country = 'US' ).
+
+    DATA(ls_result) = mo_cut->validate_bp_email( ls_bp ).
+
+    cl_abap_unit_assert=>assert_equals( act = ls_result-success  exp = abap_true ).
+    cl_abap_unit_assert=>assert_char_cp( act = ls_result-message exp = '*skipped*' ).
+  ENDMETHOD.
+
+
+  " ═══════════════════════════════════════════════════════════════════════
+  " Sanctions Skip Logic
   " ═══════════════════════════════════════════════════════════════════════
 
   METHOD vendor_sanctions_skip.

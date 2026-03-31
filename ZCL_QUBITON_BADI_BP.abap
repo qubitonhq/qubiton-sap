@@ -75,6 +75,10 @@ CLASS zcl_qubiton_badi_bp IMPLEMENTATION.
       ENDIF.
     ENDIF.
 
+    " Note: BADI_BUS1006_CHECK does not provide email (it_bpadsmtp).
+    " Email validation for BP requires reading from BUT100/ADR6 directly
+    " or using a different enhancement point that provides SMTP data.
+
     TRY.
         DATA(lo_screen) = NEW zcl_qubiton_screen(
           iv_apikey = zcl_qubiton_screen=>get_apikey( ) ).
@@ -106,6 +110,12 @@ CLASS zcl_qubiton_badi_bp IMPLEMENTATION.
 
             WHEN zcl_qubiton_screen=>gc_val_sanct.
               ls_result = lo_screen->check_bp_sanctions( is_bp = ls_bp ).
+
+            WHEN zcl_qubiton_screen=>gc_val_phone.
+              ls_result = lo_screen->validate_bp_phone( is_bp = ls_bp ).
+
+            WHEN zcl_qubiton_screen=>gc_val_email.
+              ls_result = lo_screen->validate_bp_email( is_bp = ls_bp ).
 
             WHEN OTHERS.
               CONTINUE.

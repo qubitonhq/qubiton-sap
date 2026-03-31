@@ -27,6 +27,11 @@ destination manually:
 The API key is passed as a custom header `apikey` via the
 `URL.headers.apikey` additional property.
 
+> **Security note**: For production use, store the API key in the BTP Destination
+> Service's credential store or an external secrets manager — not as a plaintext
+> additional property. The `btp-destination.json` template uses plaintext for
+> quick-start convenience only.
+
 ## Option B: ABAP RFC Destination (On-Premise S/4HANA / ECC)
 
 1. Open transaction **SM59**.

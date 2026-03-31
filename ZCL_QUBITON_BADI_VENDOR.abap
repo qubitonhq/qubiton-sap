@@ -47,6 +47,14 @@ CLASS zcl_qubiton_badi_vendor IMPLEMENTATION.
     ls_vendor-telf1 = i_lfa1-telf1.
     ls_vendor-adrnr = i_lfa1-adrnr.
 
+    " Read primary email from ADR6 (address-linked SMTP)
+    IF i_lfa1-adrnr IS NOT INITIAL.
+      SELECT SINGLE smtp_addr FROM adr6
+        INTO ls_vendor-email
+        WHERE addrnumber = i_lfa1-adrnr
+          AND flgdefault = 'X'.
+    ENDIF.
+
     " Map all bank fields including IBAN, SWIFT, and account holder
     IF i_lfbk IS NOT INITIAL.
       ls_bank-lifnr = i_lfbk-lifnr.

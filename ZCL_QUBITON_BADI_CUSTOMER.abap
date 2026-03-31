@@ -46,6 +46,14 @@ CLASS zcl_qubiton_badi_customer IMPLEMENTATION.
     ls_customer-telf1 = i_kna1-telf1.
     ls_customer-adrnr = i_kna1-adrnr.
 
+    " Read primary email from ADR6 (address-linked SMTP)
+    IF i_kna1-adrnr IS NOT INITIAL.
+      SELECT SINGLE smtp_addr FROM adr6
+        INTO ls_customer-email
+        WHERE addrnumber = i_kna1-adrnr
+          AND flgdefault = 'X'.
+    ENDIF.
+
     " Map bank fields including IBAN, SWIFT, and account holder
     IF i_knbk IS NOT INITIAL.
       ls_bank-kunnr = i_knbk-kunnr.

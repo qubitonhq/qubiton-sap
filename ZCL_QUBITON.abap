@@ -122,6 +122,8 @@ CLASS zcl_qubiton DEFINITION
     "! @parameter iv_on_invalid  | What to do when validation fails: E=stop, W=warn (default), S=silent
     "! @parameter iv_check_auth  | Check S_RFC authorization before API calls (default: false)
     "! @parameter iv_log_enabled | Write API calls to BAL Application Log SLG1 (default: true)
+    "! @parameter iv_keep_alive  | Reuse HTTP connection across calls (default: false — faster for batch)
+    "! @parameter iv_timeout     | HTTP timeout in seconds (default: 30)
     METHODS constructor
       IMPORTING
         iv_destination  TYPE string DEFAULT 'QubitOn'
@@ -130,6 +132,8 @@ CLASS zcl_qubiton DEFINITION
         iv_on_invalid   TYPE char1 DEFAULT 'W'
         iv_check_auth   TYPE abap_bool DEFAULT abap_false
         iv_log_enabled  TYPE abap_bool DEFAULT abap_true
+        iv_keep_alive   TYPE abap_bool DEFAULT abap_false
+        iv_timeout      TYPE i DEFAULT 30
       RAISING
         zcx_qubiton.
 
@@ -719,7 +723,14 @@ CLASS zcl_qubiton DEFINITION
     "! Persist BAL log entries to database (viewable in SLG1).
     "! Call this after a batch of API calls to flush the log.
     "! Automatically called on each send_request for real-time logging.
+    "! Note: BAL_DB_SAVE requires COMMIT WORK in some contexts (batch reports).
+    "! BAdI frameworks handle COMMIT automatically; standalone callers must commit.
     METHODS flush_log.
+
+    "! Close the persistent HTTP connection (only needed when iv_keep_alive = true).
+    "! Call this when you are done making API calls to release the connection.
+    "! Safe to call even when no connection is open.
+    METHODS close.
 
   PRIVATE SECTION.
 
@@ -729,7 +740,10 @@ CLASS zcl_qubiton DEFINITION
     DATA mv_on_invalid   TYPE char1.
     DATA mv_check_auth   TYPE abap_bool.
     DATA mv_log_enabled  TYPE abap_bool.
+    DATA mv_keep_alive   TYPE abap_bool.
+    DATA mv_timeout      TYPE i.
     DATA mv_log_handle   TYPE balloghndl.
+    DATA mo_client       TYPE REF TO if_http_client.
 
     "! Generic POST helper
     METHODS post
@@ -807,6 +821,8 @@ CLASS zcl_qubiton IMPLEMENTATION.
     mv_on_invalid   = iv_on_invalid.
     mv_check_auth   = iv_check_auth.
     mv_log_enabled  = iv_log_enabled.
+    mv_keep_alive   = iv_keep_alive.
+    mv_timeout      = iv_timeout.
 
     " S_RFC authorization check (optional — required for SAP certification)
     IF mv_check_auth = abap_true.
@@ -831,25 +847,34 @@ CLASS zcl_qubiton IMPLEMENTATION.
     " Capture start time for BAL logging
     GET RUN TIME FIELD lv_start.
 
-    " Create HTTP client from RFC destination
-    cl_http_client=>create_by_destination(
-      EXPORTING
-        destination              = CONV rfcdest( mv_destination )
-      IMPORTING
-        client                   = lo_client
-      EXCEPTIONS
-        argument_not_found       = 1
-        destination_not_found    = 2
-        destination_no_authority = 3
-        plugin_not_active        = 4
-        internal_error           = 5
-        OTHERS                   = 6 ).
+    " Create or reuse HTTP client
+    IF mv_keep_alive = abap_true AND mo_client IS BOUND.
+      lo_client = mo_client.
+    ELSE.
+      " Create HTTP client from RFC destination
+      cl_http_client=>create_by_destination(
+        EXPORTING
+          destination              = CONV rfcdest( mv_destination )
+        IMPORTING
+          client                   = lo_client
+        EXCEPTIONS
+          argument_not_found       = 1
+          destination_not_found    = 2
+          destination_no_authority = 3
+          plugin_not_active        = 4
+          internal_error           = 5
+          OTHERS                   = 6 ).
 
-    IF sy-subrc <> 0 OR lo_client IS NOT BOUND.
-      log_api_call( iv_method = iv_method iv_path = iv_path iv_status = 0 iv_elapsed = 0 iv_msgtype = 'E' ).
-      save_log( ).
-      RAISE EXCEPTION TYPE zcx_qubiton
-        EXPORTING error_text = |Failed to create HTTP client for destination "{ mv_destination }" (sy-subrc={ sy-subrc })|.
+      IF sy-subrc <> 0 OR lo_client IS NOT BOUND.
+        log_api_call( iv_method = iv_method iv_path = iv_path iv_status = 0 iv_elapsed = 0 iv_msgtype = 'E' ).
+        save_log( ).
+        RAISE EXCEPTION TYPE zcx_qubiton
+          EXPORTING error_text = |Failed to create HTTP client for destination "{ mv_destination }" (sy-subrc={ sy-subrc })|.
+      ENDIF.
+
+      IF mv_keep_alive = abap_true.
+        mo_client = lo_client.
+      ENDIF.
     ENDIF.
 
     " Set URI path
@@ -886,8 +911,10 @@ CLASS zcl_qubiton IMPLEMENTATION.
       lo_client->request->set_cdata( iv_body ).
     ENDIF.
 
-    " Send
+    " Send (with timeout to prevent freezing dialog work processes)
     lo_client->send(
+      EXPORTING
+        timeout                    = mv_timeout
       EXCEPTIONS
         http_communication_failure = 1
         http_invalid_state         = 2
@@ -897,6 +924,7 @@ CLASS zcl_qubiton IMPLEMENTATION.
     IF sy-subrc <> 0.
       DATA(lv_subrc_send) = sy-subrc.
       lo_client->close( ).
+      CLEAR mo_client.
       GET RUN TIME FIELD lv_end.
       lv_elapsed = ( lv_end - lv_start ) / 1000. " microseconds → milliseconds
       log_api_call( iv_method = iv_method iv_path = iv_path iv_status = 0 iv_elapsed = lv_elapsed iv_msgtype = 'E' ).
@@ -905,8 +933,10 @@ CLASS zcl_qubiton IMPLEMENTATION.
         EXPORTING error_text = |{ iv_method } { iv_path }: send failed (sy-subrc={ lv_subrc_send })|.
     ENDIF.
 
-    " Receive
+    " Receive (with timeout)
     lo_client->receive(
+      EXPORTING
+        timeout                    = mv_timeout
       EXCEPTIONS
         http_communication_failure = 1
         http_invalid_state         = 2
@@ -916,6 +946,7 @@ CLASS zcl_qubiton IMPLEMENTATION.
     IF sy-subrc <> 0.
       DATA(lv_subrc_recv) = sy-subrc.
       lo_client->close( ).
+      CLEAR mo_client.
       GET RUN TIME FIELD lv_end.
       lv_elapsed = ( lv_end - lv_start ) / 1000.
       log_api_call( iv_method = iv_method iv_path = iv_path iv_status = 0 iv_elapsed = lv_elapsed iv_msgtype = 'E' ).
@@ -931,7 +962,11 @@ CLASS zcl_qubiton IMPLEMENTATION.
         reason = lv_reason ).
 
     rv_json = lo_client->response->get_cdata( ).
-    lo_client->close( ).
+
+    " Close connection unless keep-alive is enabled
+    IF mv_keep_alive = abap_false.
+      lo_client->close( ).
+    ENDIF.
 
     " Capture elapsed time
     GET RUN TIME FIELD lv_end.
@@ -1163,7 +1198,7 @@ CLASS zcl_qubiton IMPLEMENTATION.
         ( name = 'firstName'  value = iv_first_name )
         ( name = 'lastName'   value = iv_last_name )
         ( name = 'country'    value = iv_country )
-        ( name = 'middlename' value = iv_middle_name )
+        ( name = 'middleName' value = iv_middle_name )
       ) ) ).
   ENDMETHOD.
 
@@ -1511,7 +1546,7 @@ CLASS zcl_qubiton IMPLEMENTATION.
     LOOP AT lt_dates INTO lv_date.
       CONDENSE lv_date.
       IF lv_date IS NOT INITIAL.
-        lv_body = lv_body && lv_sep && `"` && lv_date && `"`.
+        lv_body = lv_body && lv_sep && `"` && escape_json_value( lv_date ) && `"`.
         lv_sep = `,`.
       ENDIF.
     ENDLOOP.
@@ -1766,10 +1801,24 @@ CLASS zcl_qubiton IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD close.
+    IF mo_client IS BOUND.
+      mo_client->close( ).
+      CLEAR mo_client.
+    ENDIF.
+  ENDMETHOD.
+
+
   METHOD escape_json_value.
     " Escape a string for safe embedding in a JSON value.
-    " Handles: backslash, double quote, and control characters per RFC 8259.
-    DATA lv_cr TYPE c LENGTH 1.
+    " Handles: backslash, double quote, and all control characters per RFC 8259.
+    DATA lv_cr    TYPE c LENGTH 1.
+    DATA lv_char  TYPE c LENGTH 1.
+    DATA lv_code  TYPE i.
+    DATA lv_hex   TYPE string.
+    DATA lv_len   TYPE i.
+    DATA lv_idx   TYPE i.
+    DATA lv_out   TYPE string.
 
     rv_escaped = iv_value.
     " Backslash first (before introducing new backslashes)
@@ -1782,6 +1831,25 @@ CLASS zcl_qubiton IMPLEMENTATION.
     lv_cr = cl_abap_char_utilities=>cr_lf(1). " Extract standalone CR character
     rv_escaped = replace( val = rv_escaped sub = lv_cr with = `\r` occ = 0 ).
     rv_escaped = replace( val = rv_escaped sub = cl_abap_char_utilities=>horizontal_tab with = `\t` occ = 0 ).
+
+    " Escape remaining control characters U+0000-U+001F as \uXXXX (RFC 8259)
+    lv_len = strlen( rv_escaped ).
+    lv_idx = 0.
+    CLEAR lv_out.
+    WHILE lv_idx < lv_len.
+      lv_char = rv_escaped+lv_idx(1).
+      lv_code = cl_abap_conv_out_ce=>uccpi( lv_char ).
+      IF lv_code >= 0 AND lv_code <= 31.
+        " Already handled: \n (10), \r (13), \t (9) — but those are already replaced above
+        " This catches null (0), backspace (8), form feed (12), and other rare control chars
+        lv_hex = |{ lv_code }|.
+        lv_out = lv_out && `\u00` && to_lower( |{ lv_code ALIGN = RIGHT WIDTH = 2 PAD = '0' }| ).
+      ELSE.
+        lv_out = lv_out && lv_char.
+      ENDIF.
+      lv_idx = lv_idx + 1.
+    ENDWHILE.
+    rv_escaped = lv_out.
   ENDMETHOD.
 
 ENDCLASS.

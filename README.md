@@ -1,7 +1,7 @@
 # QubitOn API -- SAP S/4HANA Native Connector
 
 ABAP class for calling the **QubitOn API** from SAP S/4HANA, ECC, or BTP.
-Full API coverage with 41 methods across validation, compliance, risk, and more.
+Full API coverage with 42 methods across validation, compliance, risk, and more.
 
 ## Table of Contents
 
@@ -88,7 +88,7 @@ The class uses only standard ABAP APIs (`cl_http_client`, `if_http_client`) avai
 
 **ABAP language level**: Compatible with ABAP 7.40+ (inline declarations, string templates). For older ECC systems on 7.02-7.31, replace `DATA(...)` inline declarations with explicit `DATA` statements.
 
-## API Coverage (41 methods)
+## API Coverage (42 methods)
 
 | Category | Methods | Description |
 |----------|---------|-------------|

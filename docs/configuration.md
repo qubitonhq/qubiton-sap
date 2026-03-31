@@ -12,6 +12,8 @@ The class supports configurable error handling and validation behavior via const
 | `iv_on_invalid` | `'E'`, `'W'`, `'S'` | `'W'` | What to do when validation fails (isValid=false) |
 | `iv_check_auth` | `abap_true/false` | `abap_false` | Check `ZQUBITON_API` authorization before API calls (falls back to `S_RFC`) |
 | `iv_log_enabled` | `abap_true/false` | `abap_true` | Write API calls to BAL Application Log (SLG1) |
+| `iv_keep_alive` | `abap_true/false` | `abap_false` | Reuse HTTP connection across calls (recommended for batch — avoids TCP/TLS handshake per call) |
+| `iv_timeout` | seconds (integer) | `30` | HTTP send/receive timeout in seconds (prevents freezing dialog work processes) |
 
 ## Error/Validation Modes
 
@@ -112,7 +114,8 @@ Use silent mode and check results programmatically:
 DATA(lo_api) = NEW zcl_qubiton(
   iv_apikey     = 'your-api-key'
   iv_on_error   = zcl_qubiton=>gc_on_error_silent
-  iv_on_invalid = zcl_qubiton=>gc_on_invalid_silent ).
+  iv_on_invalid = zcl_qubiton=>gc_on_invalid_silent
+  iv_keep_alive = abap_true ).  " Reuse HTTP connection for batch performance
 
 LOOP AT lt_vendors INTO DATA(ls_vendor).
   TRY.

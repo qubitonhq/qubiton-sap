@@ -60,6 +60,7 @@ CLASS zcl_qubiton_screen DEFINITION
         stcd2 TYPE stcd2,     " Tax number 2
         telf1 TYPE telf1,     " Telephone number
         adrnr TYPE adrnr,     " Address number (for SMTP lookup)
+        email TYPE ad_smtpadr, " Email address (from ADR6 via ADRNR)
       END OF ty_vendor_data.
 
     TYPES:
@@ -90,6 +91,7 @@ CLASS zcl_qubiton_screen DEFINITION
         stcd2 TYPE stcd2,
         telf1 TYPE telf1,
         adrnr TYPE adrnr,
+        email TYPE ad_smtpadr, " Email address (from ADR6 via ADRNR)
       END OF ty_customer_data.
 
     TYPES:
@@ -122,6 +124,7 @@ CLASS zcl_qubiton_screen DEFINITION
         taxnum     TYPE bptaxnum,    " Tax number
         taxtype    TYPE bptaxtype,   " Tax type
         tel_number TYPE ad_tlnmbr1,  " Phone
+        email      TYPE ad_smtpadr,  " Email address
       END OF ty_bp_data.
 
     TYPES:
@@ -188,6 +191,20 @@ CLASS zcl_qubiton_screen DEFINITION
       RETURNING
         VALUE(rs_result) TYPE zcl_qubiton=>ty_result.
 
+    "! Validate vendor phone number
+    METHODS validate_vendor_phone
+      IMPORTING
+        is_vendor        TYPE ty_vendor_data
+      RETURNING
+        VALUE(rs_result) TYPE zcl_qubiton=>ty_result.
+
+    "! Validate vendor email address
+    METHODS validate_vendor_email
+      IMPORTING
+        is_vendor        TYPE ty_vendor_data
+      RETURNING
+        VALUE(rs_result) TYPE zcl_qubiton=>ty_result.
+
     "! Run all active validations for vendor master based on config table
     METHODS validate_vendor_all
       IMPORTING
@@ -226,6 +243,20 @@ CLASS zcl_qubiton_screen DEFINITION
     METHODS check_customer_sanctions
       IMPORTING
         is_customer    TYPE ty_customer_data
+      RETURNING
+        VALUE(rs_result) TYPE zcl_qubiton=>ty_result.
+
+    "! Validate customer phone number
+    METHODS validate_customer_phone
+      IMPORTING
+        is_customer      TYPE ty_customer_data
+      RETURNING
+        VALUE(rs_result) TYPE zcl_qubiton=>ty_result.
+
+    "! Validate customer email address
+    METHODS validate_customer_email
+      IMPORTING
+        is_customer      TYPE ty_customer_data
       RETURNING
         VALUE(rs_result) TYPE zcl_qubiton=>ty_result.
 
@@ -268,6 +299,20 @@ CLASS zcl_qubiton_screen DEFINITION
     METHODS check_bp_sanctions
       IMPORTING
         is_bp          TYPE ty_bp_data
+      RETURNING
+        VALUE(rs_result) TYPE zcl_qubiton=>ty_result.
+
+    "! Validate BP phone number
+    METHODS validate_bp_phone
+      IMPORTING
+        is_bp            TYPE ty_bp_data
+      RETURNING
+        VALUE(rs_result) TYPE zcl_qubiton=>ty_result.
+
+    "! Validate BP email address
+    METHODS validate_bp_email
+      IMPORTING
+        is_bp            TYPE ty_bp_data
       RETURNING
         VALUE(rs_result) TYPE zcl_qubiton=>ty_result.
 
@@ -710,6 +755,55 @@ CLASS zcl_qubiton_screen IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD validate_vendor_phone.
+    IF is_vendor-telf1 IS INITIAL.
+      rs_result-success  = abap_true.
+      rs_result-is_valid = abap_true.
+      rs_result-message  = 'Phone: skipped (no phone number)'.
+      RETURN.
+    ENDIF.
+
+    TRY.
+        DATA(lv_json) = mo_api->validate_phone(
+          iv_phone_number = CONV string( is_vendor-telf1 )
+          iv_country      = CONV string( is_vendor-land1 ) ).
+      CATCH zcx_qubiton INTO DATA(lx_err).
+        rs_result-success  = abap_false.
+        rs_result-message  = lx_err->get_text( ).
+        RETURN.
+    ENDTRY.
+
+    rs_result = mo_api->parse_result(
+      iv_json  = lv_json
+      iv_field = 'isValid'
+      iv_label = 'Phone' ).
+  ENDMETHOD.
+
+
+  METHOD validate_vendor_email.
+    IF is_vendor-email IS INITIAL.
+      rs_result-success  = abap_true.
+      rs_result-is_valid = abap_true.
+      rs_result-message  = 'Email: skipped (no email address)'.
+      RETURN.
+    ENDIF.
+
+    TRY.
+        DATA(lv_json) = mo_api->validate_email(
+          iv_email_address = CONV string( is_vendor-email ) ).
+      CATCH zcx_qubiton INTO DATA(lx_err).
+        rs_result-success  = abap_false.
+        rs_result-message  = lx_err->get_text( ).
+        RETURN.
+    ENDTRY.
+
+    rs_result = mo_api->parse_result(
+      iv_json  = lv_json
+      iv_field = 'isValid'
+      iv_label = 'Email' ).
+  ENDMETHOD.
+
+
   METHOD validate_vendor_all.
     DATA ls_screen_result TYPE ty_screen_result.
 
@@ -746,6 +840,12 @@ CLASS zcl_qubiton_screen IMPLEMENTATION.
         WHEN gc_val_sanct.
           ls_screen_result-result = check_vendor_sanctions( is_vendor ).
 
+        WHEN gc_val_phone.
+          ls_screen_result-result = validate_vendor_phone( is_vendor ).
+
+        WHEN gc_val_email.
+          ls_screen_result-result = validate_vendor_email( is_vendor ).
+
         WHEN OTHERS.
           CONTINUE.
       ENDCASE.
@@ -756,6 +856,8 @@ CLASS zcl_qubiton_screen IMPLEMENTATION.
           WHEN gc_val_bank    THEN 'Bank Account'
           WHEN gc_val_address THEN 'Address'
           WHEN gc_val_sanct   THEN 'Sanctions'
+          WHEN gc_val_phone   THEN 'Phone'
+          WHEN gc_val_email   THEN 'Email'
           ELSE ls_cfg-val_type )
         is_result     = ls_screen_result-result
         iv_on_invalid = ls_cfg-on_invalid
@@ -794,13 +896,18 @@ CLASS zcl_qubiton_screen IMPLEMENTATION.
 
     DATA(lv_name) = get_customer_name( is_customer ).
 
+    " Customers can be individuals or businesses — determine from name fields
+    DATA(lv_entity_type) = COND string(
+      WHEN is_customer-name1 IS NOT INITIAL THEN 'Business'
+      ELSE 'Individual' ).
+
     TRY.
         lv_json = mo_api->validate_tax(
           iv_tax_number           = lv_tax
           iv_tax_type             = lv_tax_type
           iv_country              = CONV string( is_customer-land1 )
           iv_company_name         = lv_name
-          iv_business_entity_type = 'Business' ).
+          iv_business_entity_type = lv_entity_type ).
       CATCH zcx_qubiton INTO DATA(lx_err).
         rs_result-success  = abap_false.
         rs_result-message  = lx_err->get_text( ).
@@ -922,6 +1029,55 @@ CLASS zcl_qubiton_screen IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD validate_customer_phone.
+    IF is_customer-telf1 IS INITIAL.
+      rs_result-success  = abap_true.
+      rs_result-is_valid = abap_true.
+      rs_result-message  = 'Phone: skipped (no phone number)'.
+      RETURN.
+    ENDIF.
+
+    TRY.
+        DATA(lv_json) = mo_api->validate_phone(
+          iv_phone_number = CONV string( is_customer-telf1 )
+          iv_country      = CONV string( is_customer-land1 ) ).
+      CATCH zcx_qubiton INTO DATA(lx_err).
+        rs_result-success  = abap_false.
+        rs_result-message  = lx_err->get_text( ).
+        RETURN.
+    ENDTRY.
+
+    rs_result = mo_api->parse_result(
+      iv_json  = lv_json
+      iv_field = 'isValid'
+      iv_label = 'Phone' ).
+  ENDMETHOD.
+
+
+  METHOD validate_customer_email.
+    IF is_customer-email IS INITIAL.
+      rs_result-success  = abap_true.
+      rs_result-is_valid = abap_true.
+      rs_result-message  = 'Email: skipped (no email address)'.
+      RETURN.
+    ENDIF.
+
+    TRY.
+        DATA(lv_json) = mo_api->validate_email(
+          iv_email_address = CONV string( is_customer-email ) ).
+      CATCH zcx_qubiton INTO DATA(lx_err).
+        rs_result-success  = abap_false.
+        rs_result-message  = lx_err->get_text( ).
+        RETURN.
+    ENDTRY.
+
+    rs_result = mo_api->parse_result(
+      iv_json  = lv_json
+      iv_field = 'isValid'
+      iv_label = 'Email' ).
+  ENDMETHOD.
+
+
   METHOD validate_customer_all.
     DATA ls_screen_result TYPE ty_screen_result.
 
@@ -957,6 +1113,12 @@ CLASS zcl_qubiton_screen IMPLEMENTATION.
         WHEN gc_val_sanct.
           ls_screen_result-result = check_customer_sanctions( is_customer ).
 
+        WHEN gc_val_phone.
+          ls_screen_result-result = validate_customer_phone( is_customer ).
+
+        WHEN gc_val_email.
+          ls_screen_result-result = validate_customer_email( is_customer ).
+
         WHEN OTHERS.
           CONTINUE.
       ENDCASE.
@@ -967,6 +1129,8 @@ CLASS zcl_qubiton_screen IMPLEMENTATION.
           WHEN gc_val_bank    THEN 'Bank Account'
           WHEN gc_val_address THEN 'Address'
           WHEN gc_val_sanct   THEN 'Sanctions'
+          WHEN gc_val_phone   THEN 'Phone'
+          WHEN gc_val_email   THEN 'Email'
           ELSE ls_cfg-val_type )
         is_result     = ls_screen_result-result
         iv_on_invalid = ls_cfg-on_invalid
@@ -1130,6 +1294,55 @@ CLASS zcl_qubiton_screen IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD validate_bp_phone.
+    IF is_bp-tel_number IS INITIAL.
+      rs_result-success  = abap_true.
+      rs_result-is_valid = abap_true.
+      rs_result-message  = 'Phone: skipped (no phone number)'.
+      RETURN.
+    ENDIF.
+
+    TRY.
+        DATA(lv_json) = mo_api->validate_phone(
+          iv_phone_number = CONV string( is_bp-tel_number )
+          iv_country      = CONV string( is_bp-country ) ).
+      CATCH zcx_qubiton INTO DATA(lx_err).
+        rs_result-success  = abap_false.
+        rs_result-message  = lx_err->get_text( ).
+        RETURN.
+    ENDTRY.
+
+    rs_result = mo_api->parse_result(
+      iv_json  = lv_json
+      iv_field = 'isValid'
+      iv_label = 'Phone' ).
+  ENDMETHOD.
+
+
+  METHOD validate_bp_email.
+    IF is_bp-email IS INITIAL.
+      rs_result-success  = abap_true.
+      rs_result-is_valid = abap_true.
+      rs_result-message  = 'Email: skipped (no email address)'.
+      RETURN.
+    ENDIF.
+
+    TRY.
+        DATA(lv_json) = mo_api->validate_email(
+          iv_email_address = CONV string( is_bp-email ) ).
+      CATCH zcx_qubiton INTO DATA(lx_err).
+        rs_result-success  = abap_false.
+        rs_result-message  = lx_err->get_text( ).
+        RETURN.
+    ENDTRY.
+
+    rs_result = mo_api->parse_result(
+      iv_json  = lv_json
+      iv_field = 'isValid'
+      iv_label = 'Email' ).
+  ENDMETHOD.
+
+
   METHOD validate_bp_all.
     DATA ls_screen_result TYPE ty_screen_result.
 
@@ -1174,6 +1387,12 @@ CLASS zcl_qubiton_screen IMPLEMENTATION.
         WHEN gc_val_sanct.
           ls_screen_result-result = check_bp_sanctions( is_bp ).
 
+        WHEN gc_val_phone.
+          ls_screen_result-result = validate_bp_phone( is_bp ).
+
+        WHEN gc_val_email.
+          ls_screen_result-result = validate_bp_email( is_bp ).
+
         WHEN OTHERS.
           CONTINUE.
       ENDCASE.
@@ -1184,6 +1403,8 @@ CLASS zcl_qubiton_screen IMPLEMENTATION.
           WHEN gc_val_bank    THEN 'Bank Account'
           WHEN gc_val_address THEN 'Address'
           WHEN gc_val_sanct   THEN 'Sanctions'
+          WHEN gc_val_phone   THEN 'Phone'
+          WHEN gc_val_email   THEN 'Email'
           ELSE ls_cfg-val_type )
         is_result     = ls_screen_result-result
         iv_on_invalid = ls_cfg-on_invalid
