@@ -13,6 +13,7 @@ Full API coverage with 42 methods across validation, compliance, risk, and more.
 - [Quick Start](#quick-start)
 - [Installation](#installation)
 - [Documentation](#documentation)
+- [Other Integrations](#other-integrations)
 - [License](#license)
 
 ## Why Use This Connector
@@ -195,6 +196,19 @@ This imports all classes, message class, config tables, authorization object, an
 | [Screen Enhancements](docs/screen-enhancements.md) | BAdI setup, config table (SM30), tax auto-detection, bank field mapping |
 | [Authorization & Logging](docs/authorization.md) | ZQUBITON_API auth object, SLG1 application logging |
 | [SAP Certification](docs/sap-certification.md) | ICC readiness, marketplace publishing, object inventory, complete setup steps |
+
+## Other Integrations
+
+QubitOn provides native connectors and SDKs for other platforms:
+
+| Connector | Platform | Language | Repo |
+|-----------|----------|----------|------|
+| **Go SDK** | Any platform | Go | [qubiton-go](https://github.com/qubitonhq/qubiton-go) |
+| **Oracle** | Oracle DB 11g+, EBS, Fusion | PL/SQL | [qubiton-oracle](https://github.com/qubitonhq/qubiton-oracle) |
+| **NetSuite** | All NetSuite editions | SuiteScript 2.1 | [qubiton-netsuite](https://github.com/qubitonhq/qubiton-netsuite) |
+| **QuickBooks Online** | QuickBooks Online | TypeScript | [qubiton-quickbooks](https://github.com/qubitonhq/qubiton-quickbooks) |
+
+Plus 30+ pre-built integrations for Salesforce, HubSpot, Snowflake, Databricks, Zapier, Make, and more at [www.qubiton.com/integrations](https://www.qubiton.com/integrations).
 
 ## License
 
