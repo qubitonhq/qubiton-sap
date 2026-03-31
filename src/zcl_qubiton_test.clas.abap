@@ -120,7 +120,7 @@ CLASS zcl_qubiton_test IMPLEMENTATION.
     DATA(lv_json) = mo_cut->build_json( lt_fields ).
 
     " Should NOT contain "state" since its value is blank
-    cl_abap_unit_assert=>assert_char_not_cp(
+    cl_abap_unit_assert=>assert_char_np(
       act = lv_json
       exp = '*"state"*'
       msg = 'Blank fields should be omitted from JSON' ).

@@ -1802,9 +1802,11 @@ CLASS zcl_qubiton IMPLEMENTATION.
       IF lv_code >= 0 AND lv_code <= 31.
         " Already handled: \n (10), \r (13), \t (9) — but those are already replaced above
         " This catches null (0), backspace (8), form feed (12), and other rare control chars
-        " Convert code point to hex (not decimal) for \uXXXX encoding
-        DATA(lv_hex_byte) = CONV xstring( lv_code ).
-        lv_out = lv_out && `\u00` && to_lower( |{ lv_hex_byte ALIGN = RIGHT WIDTH = 2 PAD = '0' }| ).
+        " Convert code point to hex via arithmetic (safe across all ABAP releases)
+        CONSTANTS lc_hex TYPE string VALUE `0123456789abcdef`.
+        DATA(lv_hi) = lv_code DIV 16.
+        DATA(lv_lo) = lv_code MOD 16.
+        lv_out = lv_out && `\u00` && lc_hex+lv_hi(1) && lc_hex+lv_lo(1).
       ELSE.
         lv_out = lv_out && lv_char.
       ENDIF.

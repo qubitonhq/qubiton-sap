@@ -49,7 +49,7 @@ The API key is passed as a custom header `apikey` via the
 4. Import the TLS certificate via **STRUST** (transaction) if your system
    does not already trust the public CA chain.
 
-Deploy `ZCL_QUBITON.abap` via **SE24** or **ADT** (ABAP Development Tools).
+Deploy classes from the `src/` directory via **SE24** or **ADT** (ABAP Development Tools).
 
 ## Option C: SAP CPI / Integration Suite iFlow
 

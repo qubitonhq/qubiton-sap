@@ -330,8 +330,8 @@ DATA(lv_result) = lo_api->get_supported_tax_formats( ).
 
 ```abap
 DATA(lv_result) = lo_api->lookup_epa_prosecution(
-  iv_company_name = 'Acme Chemical Corp'
-  iv_state        = 'TX'
+  iv_name  = 'Acme Chemical Corp'
+  iv_state = 'TX'
 ).
 ```
 
@@ -339,9 +339,10 @@ DATA(lv_result) = lo_api->lookup_epa_prosecution(
 
 ```abap
 DATA(lv_result) = lo_api->lookup_healthcare_exclusion(
-  iv_last_name  = 'Smith'
-  iv_first_name = 'John'
-  iv_state      = 'FL'
+  iv_healthcare_type = 'OIG'
+  iv_last_name       = 'Smith'
+  iv_first_name      = 'John'
+  iv_state           = 'FL'
 ).
 ```
 
@@ -351,8 +352,6 @@ DATA(lv_result) = lo_api->lookup_healthcare_exclusion(
 DATA(lv_result) = lo_api->lookup_fail_rate(
   iv_company_name = 'Acme Corp'
   iv_country      = 'US'
-  iv_state        = 'TX'
-  iv_city         = 'Houston'
 ).
 ```
 
@@ -381,9 +380,10 @@ DATA(lv_result) = lo_api->validate_medpass(
 ## Validate India Identity
 
 ```abap
+" Supports Driving License and Voter ID only (PAN/GSTIN handled by tax API)
 DATA(lv_result) = lo_api->validate_india_identity(
-  iv_identity_number      = 'ABCDE1234F'
-  iv_identity_number_type = 'PAN'
+  iv_identity_number      = 'ABC1234567890'
+  iv_identity_number_type = 'DL'
   iv_entity_name          = 'Rajesh Kumar'
 ).
 ```
