@@ -8,7 +8,7 @@ Full API coverage with 42 methods across validation, compliance, risk, and more.
 - [Why Use This Connector](#why-use-this-connector)
 - [How It Works](#how-it-works)
 - [Platform Compatibility](#platform-compatibility)
-- [API Coverage (41 methods)](#api-coverage-41-methods)
+- [API Coverage (42 methods)](#api-coverage-42-methods)
 - [MCP Protocol Support](#mcp-protocol-support)
 - [Quick Start](#quick-start)
 - [Installation](#installation)
@@ -170,13 +170,13 @@ This imports all classes, message class, config tables, authorization object, an
 ### Manual (SE24)
 
 1. Download the latest [release](https://github.com/qubitonhq/qubiton-sap/releases).
-2. Create each class in **SE24** in dependency order:
-   - `ZCX_QUBITON` — Exception class
-   - `ZCL_QUBITON` — Core API client
-   - `ZCL_QUBITON_SCREEN` — Screen enhancement orchestrator
-   - `ZCL_QUBITON_BADI_VENDOR` — Vendor BAdI
-   - `ZCL_QUBITON_BADI_CUSTOMER` — Customer BAdI
-   - `ZCL_QUBITON_BADI_BP` — Business Partner BAdI
+2. Create each class in **SE24** using the ABAP source files from the `src/` directory, in dependency order:
+   - `ZCX_QUBITON` — Exception class (`src/zcx_qubiton.clas.abap`)
+   - `ZCL_QUBITON` — Core API client (`src/zcl_qubiton.clas.abap`)
+   - `ZCL_QUBITON_SCREEN` — Screen enhancement orchestrator (`src/zcl_qubiton_screen.clas.abap`)
+   - `ZCL_QUBITON_BADI_VENDOR` — Vendor BAdI (`src/zcl_qubiton_badi_vendor.clas.abap`)
+   - `ZCL_QUBITON_BADI_CUSTOMER` — Customer BAdI (`src/zcl_qubiton_badi_customer.clas.abap`)
+   - `ZCL_QUBITON_BADI_BP` — Business Partner BAdI (`src/zcl_qubiton_badi_bp.clas.abap`)
 3. Create message class `ZCL_QUBITON_MSG` in **SE91**, config tables in **SE11**, auth object in **SU21**.
 
 ### ADT (Eclipse)
@@ -191,7 +191,7 @@ This imports all classes, message class, config tables, authorization object, an
 |----------|-------------|
 | [Setup & Connectivity](docs/setup.md) | API key, BTP destination, RFC destination (SM59), CPI iFlow |
 | [Configuration](docs/configuration.md) | Constructor params, error modes, handle_result, real-time vs. batch, JSON parsing |
-| [Usage Examples](docs/examples.md) | ABAP code examples for all 41 API methods |
+| [Usage Examples](docs/examples.md) | ABAP code examples for all 42 API methods |
 | [Screen Enhancements](docs/screen-enhancements.md) | BAdI setup, config table (SM30), tax auto-detection, bank field mapping |
 | [Authorization & Logging](docs/authorization.md) | ZQUBITON_API auth object, SLG1 application logging |
 | [SAP Certification](docs/sap-certification.md) | ICC readiness, marketplace publishing, object inventory, complete setup steps |

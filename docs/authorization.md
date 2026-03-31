@@ -10,7 +10,7 @@ The connector includes an optional custom authorization object `ZQUBITON_API` wi
 | Lookup | `02` | `lookup_business_registration`, `lookup_epa_prosecution`, `lookup_healthcare_exclusion`, `lookup_credit_analysis`, `lookup_beneficial_ownership`, `lookup_corporate_hierarchy`, `lookup_duns`, `lookup_hierarchy`, `lookup_certification`, `lookup_business_classification`, `lookup_dot_carrier`, `lookup_ariba_supplier`, `lookup_exchange_rates`, `lookup_esg_score`, `lookup_credit_score`, `lookup_fail_rate` |
 | Screen | `03` | `check_sanctions`, `screen_pep`, `check_directors`, `check_epa_prosecution`, `check_healthcare_exclusion`, `check_ip_quality` |
 | Risk | `04` | `check_bankruptcy_risk`, `assess_entity_risk`, `domain_security_report` |
-| Financial | `05` | `analyze_payment_terms`, `lookup_exchange_rates` |
+| Financial | `05` | `analyze_payment_terms` |
 | Reference | `06` | `get_supported_tax_formats`, `get_peppol_schemes`, `identify_gender` |
 
 ## Setup
@@ -20,6 +20,8 @@ The connector includes an optional custom authorization object `ZQUBITON_API` wi
 3. Pass `iv_check_auth = abap_true` when creating the client instance
 
 If `ZQUBITON_API` is not registered in SU21 yet, the check automatically falls back to `S_RFC` (generic RFC authorization).
+
+> **Note**: The current implementation performs a single check for activity `01` at construction time (all-or-nothing). Users assigned activity `01` or `*` pass the check; the per-category activities (02-06) are documented for future per-method enforcement. For now, assign `*` (all) or `01` in PFCG roles.
 
 ```abap
 " Enforce authorization — only users with ZQUBITON_API role can call

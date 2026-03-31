@@ -1,55 +1,6 @@
-"! <p class="shorttext synchronized">QubitOn API Exception</p>
-"! Exception raised when the QubitOn API call fails.
-CLASS zcx_qubiton DEFINITION
-  PUBLIC
-  INHERITING FROM cx_static_check
-  FINAL
-  CREATE PUBLIC.
-
-  PUBLIC SECTION.
-
-    INTERFACES if_t100_message.
-
-    DATA http_status TYPE i READ-ONLY.
-    DATA error_text  TYPE string READ-ONLY.
-
-    METHODS constructor
-      IMPORTING
-        textid      LIKE if_t100_message=>t100key OPTIONAL
-        previous    TYPE REF TO cx_root OPTIONAL
-        http_status TYPE i DEFAULT 0
-        error_text  TYPE string OPTIONAL.
-
-    METHODS get_text REDEFINITION.
-
-ENDCLASS.
-
-
-CLASS zcx_qubiton IMPLEMENTATION.
-
-  METHOD constructor.
-    super->constructor( previous = previous ).
-    me->http_status = http_status.
-    me->error_text  = error_text.
-    IF textid IS SUPPLIED.
-      if_t100_message~t100key = textid.
-    ENDIF.
-  ENDMETHOD.
-
-  METHOD get_text.
-    IF error_text IS NOT INITIAL.
-      result = error_text.
-    ELSE.
-      result = |QubitOn API error (HTTP { http_status })|.
-    ENDIF.
-  ENDMETHOD.
-
-ENDCLASS.
-
-
 "! <p class="shorttext synchronized">QubitOn API Client</p>
 "! ABAP class for calling the QubitOn API from SAP S/4HANA, ECC, or BTP.
-"! Full API coverage: 41 methods across address, tax, bank, email, phone,
+"! Full API coverage: 42 methods across address, tax, bank, email, phone,
 "! compliance, risk, corporate structure, healthcare, certification, and more.
 "!
 "! <p>Requires RFC destination <strong>QubitOn</strong> of type HTTP
@@ -120,7 +71,7 @@ CLASS zcl_qubiton DEFINITION
     "! @parameter iv_apikey      | API key (overrides destination header if supplied)
     "! @parameter iv_on_error    | What to do on HTTP/network failure: E=stop, W=warn (default), S=silent
     "! @parameter iv_on_invalid  | What to do when validation fails: E=stop, W=warn (default), S=silent
-    "! @parameter iv_check_auth  | Check S_RFC authorization before API calls (default: false)
+    "! @parameter iv_check_auth  | Check ZQUBITON_API authorization before API calls (falls back to S_RFC; default: false)
     "! @parameter iv_log_enabled | Write API calls to BAL Application Log SLG1 (default: true)
     "! @parameter iv_keep_alive  | Reuse HTTP connection across calls (default: false — faster for batch)
     "! @parameter iv_timeout     | HTTP timeout in seconds (default: 30)
@@ -850,6 +801,8 @@ CLASS zcl_qubiton IMPLEMENTATION.
     " Create or reuse HTTP client
     IF mv_keep_alive = abap_true AND mo_client IS BOUND.
       lo_client = mo_client.
+      " Clear previous request body to prevent stale POST data on subsequent GET calls
+      lo_client->request->set_cdata( '' ).
     ELSE.
       " Create HTTP client from RFC destination
       cl_http_client=>create_by_destination(
@@ -1016,8 +969,16 @@ CLASS zcl_qubiton IMPLEMENTATION.
 
         CASE ls_field-type.
           WHEN gc_type_number.
-            " Numeric value — no quotes
-            rv_json = rv_json && ls_field-value.
+            " Numeric value — no quotes; validate to prevent JSON injection
+            DATA(lv_num) = ls_field-value.
+            CONDENSE lv_num.
+            " Strip leading/trailing whitespace and verify it looks numeric
+            IF lv_num CO '0123456789.-+eE'.
+              rv_json = rv_json && lv_num.
+            ELSE.
+              " Non-numeric value — emit as quoted string to prevent malformed JSON
+              rv_json = rv_json && `"` && escape_json_value( ls_field-value ) && `"`.
+            ENDIF.
           WHEN gc_type_boolean.
             " Boolean — emit true/false without quotes
             IF ls_field-value = 'true' OR ls_field-value = 'X' OR ls_field-value = '1'.
@@ -1365,8 +1326,8 @@ CLASS zcl_qubiton IMPLEMENTATION.
       iv_body = build_json( VALUE #(
         ( name = 'companyName'  value = iv_company_name )
         ( name = 'countryIso2'  value = iv_country_iso2 )
-        ( name = 'uboThreshold' value = iv_ubo_threshold )
-        ( name = 'maxLayers'    value = iv_max_layers )
+        ( name = 'uboThreshold' value = iv_ubo_threshold type = gc_type_number )
+        ( name = 'maxLayers'    value = iv_max_layers    type = gc_type_number )
       ) ) ).
   ENDMETHOD.
 
@@ -1699,9 +1660,9 @@ CLASS zcl_qubiton IMPLEMENTATION.
 
   METHOD check_authority.
     " Check custom authorization object ZQUBITON_API.
-    " Fields:
-    "   ZQBT_ACTVT — Activity: 01=validate, 02=lookup, 03=screen (or * for all)
-    " Assign via SU21 (object definition) + PFCG (role assignment).
+    " This performs a single all-or-nothing check at construction time.
+    " The user must have activity 01 (or *) assigned in PFCG.
+    " For per-category enforcement, implement checks in subclass or calling code.
     " Falls back to S_RFC if the custom object is not yet registered.
     AUTHORITY-CHECK OBJECT 'ZQUBITON_API'
       ID 'ZQBT_ACTVT' FIELD '01'.
@@ -1815,7 +1776,6 @@ CLASS zcl_qubiton IMPLEMENTATION.
     DATA lv_cr    TYPE c LENGTH 1.
     DATA lv_char  TYPE c LENGTH 1.
     DATA lv_code  TYPE i.
-    DATA lv_hex   TYPE string.
     DATA lv_len   TYPE i.
     DATA lv_idx   TYPE i.
     DATA lv_out   TYPE string.
@@ -1842,8 +1802,9 @@ CLASS zcl_qubiton IMPLEMENTATION.
       IF lv_code >= 0 AND lv_code <= 31.
         " Already handled: \n (10), \r (13), \t (9) — but those are already replaced above
         " This catches null (0), backspace (8), form feed (12), and other rare control chars
-        lv_hex = |{ lv_code }|.
-        lv_out = lv_out && `\u00` && to_lower( |{ lv_code ALIGN = RIGHT WIDTH = 2 PAD = '0' }| ).
+        " Convert code point to hex (not decimal) for \uXXXX encoding
+        DATA(lv_hex_byte) = CONV xstring( lv_code ).
+        lv_out = lv_out && `\u00` && to_lower( |{ lv_hex_byte ALIGN = RIGHT WIDTH = 2 PAD = '0' }| ).
       ELSE.
         lv_out = lv_out && lv_char.
       ENDIF.

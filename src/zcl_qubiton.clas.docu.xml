@@ -17,7 +17,7 @@
     </TLINE>
     <TLINE>
      <TDFORMAT>  </TDFORMAT>
-     <TDLINE>Provides 41 methods for address validation, tax ID verification, bank</TDLINE>
+     <TDLINE>Provides 42 methods for address validation, tax ID verification, bank</TDLINE>
     </TLINE>
     <TLINE>
      <TDFORMAT>  </TDFORMAT>
@@ -77,7 +77,7 @@
     </TLINE>
     <TLINE>
      <TDFORMAT>B1</TDFORMAT>
-     <TDLINE>iv_check_auth = abap_true to enforce S_RFC authorization check</TDLINE>
+     <TDLINE>iv_check_auth = abap_true to enforce ZQUBITON_API authorization (falls back to S_RFC)</TDLINE>
     </TLINE>
     <TLINE>
      <TDFORMAT>AS</TDFORMAT>
@@ -157,7 +157,7 @@
     </TLINE>
     <TLINE>
      <TDFORMAT>  </TDFORMAT>
-     <TDLINE>41 methods: address, tax, bank, email, phone, business registration,</TDLINE>
+     <TDLINE>42 methods: address, tax, bank, email, phone, business registration,</TDLINE>
     </TLINE>
     <TLINE>
      <TDFORMAT>  </TDFORMAT>

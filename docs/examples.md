@@ -326,6 +326,88 @@ DATA(lv_result) = lo_api->identify_gender(
 DATA(lv_result) = lo_api->get_supported_tax_formats( ).
 ```
 
+## Look Up EPA Prosecution
+
+```abap
+DATA(lv_result) = lo_api->lookup_epa_prosecution(
+  iv_company_name = 'Acme Chemical Corp'
+  iv_state        = 'TX'
+).
+```
+
+## Look Up Healthcare Exclusion
+
+```abap
+DATA(lv_result) = lo_api->lookup_healthcare_exclusion(
+  iv_last_name  = 'Smith'
+  iv_first_name = 'John'
+  iv_state      = 'FL'
+).
+```
+
+## Look Up Fail Rate
+
+```abap
+DATA(lv_result) = lo_api->lookup_fail_rate(
+  iv_company_name = 'Acme Corp'
+  iv_country      = 'US'
+  iv_state        = 'TX'
+  iv_city         = 'Houston'
+).
+```
+
+## Look Up Company Hierarchy
+
+```abap
+DATA(lv_result) = lo_api->lookup_hierarchy(
+  iv_identifier      = '123456789'
+  iv_identifier_type = 'DUNS'
+  iv_country         = 'US'
+).
+```
+
+## Validate Medpass
+
+```abap
+DATA(lv_result) = lo_api->validate_medpass(
+  iv_id                   = '1234567890'
+  iv_business_entity_type = 'Business'
+  iv_company_name         = 'ABC Medical Supplies'
+  iv_country              = 'US'
+  iv_state                = 'CA'
+).
+```
+
+## Validate India Identity
+
+```abap
+DATA(lv_result) = lo_api->validate_india_identity(
+  iv_identity_number      = 'ABCDE1234F'
+  iv_identity_number_type = 'PAN'
+  iv_entity_name          = 'Rajesh Kumar'
+).
+```
+
+## Look Up Certification
+
+```abap
+DATA(lv_result) = lo_api->lookup_certification(
+  iv_company_name        = 'ABC Enterprises'
+  iv_country             = 'US'
+  iv_state               = 'CA'
+  iv_certification_type  = 'MBE'
+  iv_certification_group = 'NMSDC'
+).
+```
+
+## Validate SAP Ariba Supplier
+
+```abap
+DATA(lv_result) = lo_api->validate_ariba_supplier(
+  iv_anid = 'AN01234567890'
+).
+```
+
 ## Get Peppol Schemes
 
 ```abap

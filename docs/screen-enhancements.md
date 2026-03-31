@@ -18,8 +18,8 @@ The connector includes pre-built BAdI implementations that automatically validat
 | **BANK** | BANKN / IBAN / SWIFT / BANKL | BANKN / IBAN / SWIFT / BANKL | BANKN / IBAN / SWIFT / BANKL | Bank account, routing/sort code, IBAN, SWIFT validation |
 | **ADDRESS** | STRAS / ORT01 / REGIO / PSTLZ | STRAS / ORT01 / REGIO / PSTLZ | STREET / CITY / REGION / POSTL_COD1 | Postal address validation (249 countries) |
 | **SANCTION** | NAME1 + address fields | NAME1 + address fields | NAME_ORG1/NAME_LAST + address | OFAC, EU, UN sanctions/prohibited list screening |
-| **EMAIL** | *(planned)* | *(planned)* | *(planned)* | Email deliverability validation |
-| **PHONE** | *(planned)* | *(planned)* | *(planned)* | Phone number carrier validation |
+| **EMAIL** | ADR6 (SMTP_ADDR) | ADR6 (SMTP_ADDR) | *(not available via BAdI)* | Email deliverability validation |
+| **PHONE** | TELF1 | TELF1 | TEL_NUMBER | Phone number carrier validation |
 
 ## How It Works
 
@@ -38,6 +38,8 @@ ZCL_QUBITON_SCREEN reads ZQUBITON_SCREEN_CFG table
   |  +-- Is BANK validation active for this tcode? -> validate bank
   |  +-- Is ADDRESS validation active for this tcode? -> validate address
   |  +-- Is SANCTION screening active for this tcode? -> check sanctions
+  |  +-- Is EMAIL validation active for this tcode? -> validate email
+  |  +-- Is PHONE validation active for this tcode? -> validate phone
   |  +-- Country filter match? -> skip if country doesn't match
   |
   v

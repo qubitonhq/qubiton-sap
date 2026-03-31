@@ -225,10 +225,11 @@ CLASS zcl_qubiton_screen DEFINITION
     "! Validate customer bank account (IBAN, SWIFT, routing, account number)
     METHODS validate_customer_bank
       IMPORTING
-        is_bank          TYPE ty_customer_bank
-        iv_customer_name TYPE string
-        iv_tax_id        TYPE string OPTIONAL
-        iv_tax_type      TYPE string OPTIONAL
+        is_bank                TYPE ty_customer_bank
+        iv_customer_name       TYPE string
+        iv_tax_id              TYPE string OPTIONAL
+        iv_tax_type            TYPE string OPTIONAL
+        iv_business_entity_type TYPE string DEFAULT 'Business'
       RETURNING
         VALUE(rs_result) TYPE zcl_qubiton=>ty_result.
 
@@ -937,7 +938,7 @@ CLASS zcl_qubiton_screen IMPLEMENTATION.
 
     TRY.
         lv_json = mo_api->validate_bank_account(
-          iv_business_entity_type = 'Business'
+          iv_business_entity_type = iv_business_entity_type
           iv_country              = CONV string( is_bank-banks )
           iv_bank_account_holder  = lv_holder
           iv_account_number       = CONV string( is_bank-bankn )
@@ -1098,11 +1099,13 @@ CLASS zcl_qubiton_screen IMPLEMENTATION.
         WHEN gc_val_bank.
           IF is_bank IS SUPPLIED AND is_bank IS NOT INITIAL.
             ls_screen_result-result = validate_customer_bank(
-              is_bank          = is_bank
-              iv_customer_name = get_customer_name( is_customer )
-              iv_tax_id        = get_customer_tax_number( is_customer )
-              iv_tax_type      = COND #( WHEN is_customer-stceg IS NOT INITIAL THEN 'VAT'
-                                         ELSE determine_tax_type( is_customer-land1 ) ) ).
+              is_bank                 = is_bank
+              iv_customer_name        = get_customer_name( is_customer )
+              iv_tax_id               = get_customer_tax_number( is_customer )
+              iv_tax_type             = COND #( WHEN is_customer-stceg IS NOT INITIAL THEN 'VAT'
+                                                ELSE determine_tax_type( is_customer-land1 ) )
+              iv_business_entity_type = COND #( WHEN is_customer-name1 IS NOT INITIAL THEN 'Business'
+                                                ELSE 'Individual' ) ).
           ELSE.
             CONTINUE.  " No bank data provided
           ENDIF.

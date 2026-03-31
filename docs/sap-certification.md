@@ -8,7 +8,7 @@ This connector is designed for SAP certification (ICC) and SAP Store / SAP Busin
 |-------------|---------------|--------|
 | **Message class (SE91)** | `ZCL_QUBITON_MSG` — 10 translatable messages, no hardcoded strings in MESSAGE statements | Ready |
 | **Package assignment** | `ZQUBITON` package with abapGit metadata (`src/zqubiton.devc.xml`) | Ready |
-| **ABAP Unit tests** | `ZCL_QUBITON_TEST` — 30 tests + `ZCL_QUBITON_SCREEN_TEST` — 41 tests = **71 total** | Ready |
+| **ABAP Unit tests** | `ZCL_QUBITON_TEST` — 30 tests + `ZCL_QUBITON_SCREEN_TEST` — 47 tests = **77 total** | Ready |
 | **SE61 documentation** | Class documentation object (`src/zcl_qubiton.clas.docu.xml`) | Ready |
 | **Authorization check** | Custom `ZQUBITON_API` auth object with per-category activities (falls back to `S_RFC`) | Ready |
 | **Application logging (BAL)** | SLG1 logging under object `ZQUBITON` / subobject `ZAPI_CALL` with method, path, elapsed time, HTTP status | Ready |
@@ -40,13 +40,13 @@ For SAP Store distribution, the following additional items are needed:
 
 | Object Type | Object Name | Description |
 |-------------|-------------|-------------|
-| Class | `ZCL_QUBITON` | Core API client (41 methods) |
+| Class | `ZCL_QUBITON` | Core API client (42 methods) |
 | Class | `ZCL_QUBITON_SCREEN` | Screen enhancement orchestrator |
 | Class | `ZCL_QUBITON_BADI_VENDOR` | Vendor master BAdI implementation |
 | Class | `ZCL_QUBITON_BADI_CUSTOMER` | Customer master BAdI implementation |
 | Class | `ZCL_QUBITON_BADI_BP` | Business Partner BAdI implementation |
 | Class | `ZCL_QUBITON_TEST` | API client unit tests (30 methods) |
-| Class | `ZCL_QUBITON_SCREEN_TEST` | Screen enhancement unit tests (41 methods) |
+| Class | `ZCL_QUBITON_SCREEN_TEST` | Screen enhancement unit tests (47 methods) |
 | Exception | `ZCX_QUBITON` | Custom exception class |
 | Message Class | `ZCL_QUBITON_MSG` | 10 translatable messages |
 | Auth Object | `ZQUBITON_API` | Authorization with 6 activity categories |
@@ -82,5 +82,5 @@ Right-click ZCL_QUBITON_SCREEN_TEST -> Run As -> ABAP Unit Test
 " Via SE80:
 Navigate to package ZQUBITON -> Run All Unit Tests
 
-" Expected: 71 tests, 0 failures
+" Expected: 77 tests, 0 failures
 ```

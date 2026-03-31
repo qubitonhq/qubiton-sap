@@ -173,10 +173,11 @@ CLASS zcl_qubiton_badi_bp IMPLEMENTATION.
 
       CATCH zcx_qubiton INTO DATA(lx_err).
         DATA ls_warn TYPE bapiret2.
-        ls_warn-type    = 'W'.
-        ls_warn-id      = zcl_qubiton=>gc_msgid.
-        ls_warn-number  = '003'.
-        ls_warn-message = |QubitOn validation unavailable: { lx_err->get_text( ) }|.
+        ls_warn-type       = 'W'.
+        ls_warn-id         = zcl_qubiton=>gc_msgid.
+        ls_warn-number     = '003'.
+        ls_warn-message_v1 = lx_err->get_text( ).
+        ls_warn-message    = lx_err->get_text( ).
         APPEND ls_warn TO et_return.
     ENDTRY.
   ENDMETHOD.
