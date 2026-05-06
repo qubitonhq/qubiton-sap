@@ -1,0 +1,32 @@
+{
+  "global": {
+    "files": "/src/**/*.*",
+    "skipGeneratedGatewayClasses": true,
+    "skipGeneratedPersistentClasses": true,
+    "skipGeneratedFunctionGroups": true
+  },
+  "dependencies": [
+    {
+      "url": "https://github.com/open-abap/open-abap-core",
+      "folder": ".deps/open-abap-core",
+      "files": "/src/**/*.*"
+    },
+    {
+      "url": "https://github.com/abaplint/deps",
+      "folder": ".deps/abaplint-deps",
+      "files": "/src/**/*.*"
+    }
+  ],
+  "syntax": {
+    "version": "v755",
+    "errorNamespace": "."
+  },
+  "rules": {
+    "parser_error": true,
+    "check_syntax": true,
+    "begin_end_names": true,
+    "method_implemented_twice": true,
+    "double_endclass": true,
+    "no_yoda_conditions": false
+  }
+}

@@ -2,6 +2,8 @@
 
 The connector includes pre-built BAdI implementations that automatically validate data when users save vendor master, customer master, or Business Partner records. SAP admins control exactly which validations run via a configuration table — no ABAP development needed to turn validations on or off.
 
+> **Looking for transactional documents?** This page covers **master-data** save hooks (XK01/XK02, FK01/FK02, BP). For purchase orders (ME21N/ME22N), invoices (MIRO), payments (F-58), and payment proposals (F110) — plus the SWIE/BRF+/BTE workflow integration helpers — see [Transaction Validation](transaction-validation.md).
+
 ## Supported Screens
 
 | Master Data | Transaction Codes | BAdI | Implementation Class |
