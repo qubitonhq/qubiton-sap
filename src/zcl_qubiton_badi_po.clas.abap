@@ -104,7 +104,16 @@ CLASS zcl_qubiton_badi_po IMPLEMENTATION.
 
   METHOD check_po_vendor.
     " Look up the vendor master and run the screening orchestrator.
-    " Caches per (PO save) so multi-line POs don't hammer the API.
+    " Pipeline:
+    "   1. Pull LFA1 → ty_vendor_data
+    "   2. Run validate_vendor_all (returns one ty_screen_result per
+    "      configured check; respects ZQUBITON_SCREEN_CFG)
+    "   3. (optional) Ask BRF+ for the final verdict per validation
+    "      when BRFPLUS_ENABLED='X' (overrides ON_INVALID column)
+    "   4. (optional) Raise an SWIE workflow event when a warn-tier
+    "      verdict says "route to approver" (WORKFLOW_ENABLED='X')
+    "   5. Return rv_block=abap_true only on a hard block; warn-tier
+    "      verdicts surface a yellow message and let save proceed
 
     DATA ls_lfa1 TYPE lfa1.
 
@@ -130,16 +139,63 @@ CLASS zcl_qubiton_badi_po IMPLEMENTATION.
         DATA(lo_screen) = NEW zcl_qubiton_screen(
           iv_apikey = zcl_qubiton_screen=>get_apikey( ) ).
 
-        " For PO save we typically only run high-stakes checks: sanctions
-        " is the canonical example (block on match). validate_vendor_all
-        " honours the ZQUBITON_SCREEN_CFG row for tcode 'ME21N'/'ME22N'
-        " so admins can extend without code changes.
+        " 1. Run all configured checks. validate_vendor_all honours the
+        " ZQUBITON_SCREEN_CFG row for tcode 'ME21N'/'ME22N'.
         DATA(lt_results) = lo_screen->validate_vendor_all(
           is_vendor = ls_vendor ).
 
-        LOOP AT lt_results INTO DATA(ls_res) WHERE blocked = abap_true.
-          rv_block = abap_true.
-          EXIT.
+        " 2. Apply the verdict per result. Use BRF+ when configured,
+        " fall back to the result's own blocked flag otherwise.
+        DATA(lo_brfplus) = NEW zcl_qubiton_brfplus( ).
+        DATA(lo_workflow) = NEW zcl_qubiton_workflow( ).
+
+        LOOP AT lt_results INTO DATA(ls_res).
+          DATA lv_verdict TYPE char1.
+
+          IF zcl_qubiton_brfplus=>is_enabled( ) = abap_true.
+            " Customer has wired up a BRF+ application — let it decide.
+            lv_verdict = lo_brfplus->get_verdict( is_input = VALUE #(
+              vendor_country = ls_vendor-land1
+              sanctions_hit  = COND #(
+                WHEN ls_res-val_type = zcl_qubiton_screen=>gc_val_sanct
+                 AND ls_res-blocked  = abap_true THEN abap_true
+                ELSE abap_false ) ) ).
+          ENDIF.
+
+          IF lv_verdict IS INITIAL.
+            " BRF+ disabled or fell back — use the per-result blocked flag
+            " (which itself comes from ZQUBITON_SCREEN_CFG.ON_INVALID).
+            lv_verdict = COND #( WHEN ls_res-blocked = abap_true
+                                 THEN zcl_qubiton_brfplus=>gc_verdict_block
+                                 ELSE zcl_qubiton_brfplus=>gc_verdict_silent ).
+          ENDIF.
+
+          " 3. Act on the verdict.
+          CASE lv_verdict.
+            WHEN zcl_qubiton_brfplus=>gc_verdict_block.
+              rv_block = abap_true.
+              EXIT.   " first hard-block wins; no need to evaluate more
+
+            WHEN zcl_qubiton_brfplus=>gc_verdict_route.
+              " Customer wants approval routing instead of hard-block.
+              " Raise an SWIE event so a workflow template picks it up.
+              " (No-op when WORKFLOW_ENABLED is off.)
+              IF zcl_qubiton_workflow=>is_enabled( ) = abap_true.
+                lo_workflow->raise_event(
+                  iv_objtype = zcl_qubiton_workflow=>gc_objtype_po
+                  iv_objkey  = CONV #( iv_lifnr )
+                  iv_event   = zcl_qubiton_workflow=>gc_event_review
+                  is_result  = ls_res-result ).
+              ENDIF.
+
+            WHEN zcl_qubiton_brfplus=>gc_verdict_warn.
+              " Yellow status-bar warning; save proceeds.
+              MESSAGE w003(zcl_qubiton_msg) WITH ls_res-result-message.
+
+            WHEN OTHERS.
+              " gc_verdict_silent — log only, no user message.
+              CONTINUE.
+          ENDCASE.
         ENDLOOP.
 
       CATCH zcx_qubiton INTO DATA(lx_err).
