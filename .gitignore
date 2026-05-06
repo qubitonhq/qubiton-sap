@@ -14,3 +14,6 @@
 # Eclipse ADT
 .buildpath
 .classpath
+
+# abaplint dependency cache (cloned by `npm run lint:setup` or CI; not committed)
+.deps/

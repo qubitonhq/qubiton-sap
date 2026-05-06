@@ -132,6 +132,7 @@ CLASS zcl_qubiton_workflow IMPLEMENTATION.
     ENDIF.
 
     DATA lv_event_id TYPE swedumevtid.
+    DATA lv_rc       TYPE sysubrc.
 
     CALL FUNCTION 'SAP_WAPI_CREATE_EVENT'
       EXPORTING
@@ -140,7 +141,7 @@ CLASS zcl_qubiton_workflow IMPLEMENTATION.
         event              = CONV swo_event( iv_event )
         commit_work        = 'X'
       IMPORTING
-        return_code        = DATA(lv_rc)
+        return_code        = lv_rc
         event_id           = lv_event_id
       TABLES
         input_container    = lt_container
@@ -150,7 +151,7 @@ CLASS zcl_qubiton_workflow IMPLEMENTATION.
     IF lv_rc <> 0 OR sy-subrc <> 0.
       RAISE EXCEPTION TYPE zcx_qubiton
         EXPORTING
-          message = |Failed to raise workflow event { iv_event } on { iv_objtype }/{ iv_objkey }: rc={ lv_rc }|.
+          error_text = |Failed to raise workflow event { iv_event } on { iv_objtype }/{ iv_objkey }: rc={ lv_rc }|.
     ENDIF.
   ENDMETHOD.
 

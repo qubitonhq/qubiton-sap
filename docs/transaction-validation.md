@@ -455,6 +455,27 @@ We're tracking three workstreams for Cloud Public Edition:
 
 Customers on Public Cloud who need this today should start with Pattern A (Integration Suite). The reference iFlow XML is in the QubitOn knowledge base — request it via support.
 
+## Local validation (no SAP system needed)
+
+You can catch ~half of the issues abaplint catches without an SAP system, by loading open-source SAP-standard-library stubs:
+
+```bash
+./scripts/lint.sh           # full lint with stubs loaded (~100 errors, mostly noise)
+./scripts/lint.sh --signal  # filter known noise; show only real issues
+./scripts/lint.sh --setup   # clone the stub repos only (CI does this once)
+```
+
+The script clones two repos into `.deps/` (gitignored):
+
+- [`open-abap/open-abap-core`](https://github.com/open-abap/open-abap-core) — stubs for `cl_http_client`, `cl_http_utility`, `cx_root`, `cl_abap_char_utilities`, etc. (the things abaplint can't see otherwise)
+- [`abaplint/deps`](https://github.com/abaplint/deps) — basic ABAP foundation interfaces
+
+What this catches: parser errors, syntax errors, real type mismatches in places where the standard library is stubbed (e.g., wrong `EXPORTING` parameter names on standard methods).
+
+What this doesn't catch: BAdI interface signatures, DDIC table existence (LFA1, EKKO), FI-specific function modules, the BTE / FIBF registry, runtime activation. Those need a real SAP system — see "Per-version compatibility" above for the deployment workflow.
+
+CI: `.github/workflows/abaplint.yml` runs the signal-filtered lint on every PR and fails the build if any real issue surfaces.
+
 ## See also
 
 - [Screen Enhancements](screen-enhancements.md) — master-data save-time validations (already shipped)
