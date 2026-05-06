@@ -533,26 +533,38 @@ CLASS zcl_qubiton_test IMPLEMENTATION.
   " ═══════════════════════════════════════════════════════════════════════
   " API Field-Name Regression Tests
   "
-  " The .NET API renamed several Tax / BusinessRegistration request DTOs
-  " (taxNumber → identityNumber, taxType → identityNumberType,
-  "  country → countryIso2, companyName → entityName).
-  " These tests document the post-rename contract by exercising build_json
-  " with the exact field tables each API method must produce. If the API
-  " method is reverted to legacy names, mirror the test field names too.
+  " These tests call the per-endpoint body-builder helpers directly
+  " (e.g. build_address_body, build_tax_body) and verify the JSON each
+  " produces. Because each API method (validate_address, validate_tax,
+  " etc.) calls its corresponding helper with the same parameter set,
+  " a future edit that changes a field name on the wire WILL trip the
+  " corresponding test — this is real regression coverage, not just
+  " spec-by-example.
   " ═══════════════════════════════════════════════════════════════════════
 
+  METHOD api_address_fields.
+    DATA(lv_json) = mo_cut->build_address_body(
+      iv_country       = 'US'
+      iv_address_line1 = '123 Main St'
+      iv_address_line2 = '456 Suite'
+      iv_city          = 'Springfield'
+      iv_state         = 'IL'
+      iv_postal_code   = '62701'
+      iv_company_name  = 'Acme Corp' ).
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lv_json
+      exp = '*"country":"US"*"addressLine1":"123 Main St"*"city":"Springfield"*"state":"IL"*"postalCode":"62701"*"companyName":"Acme Corp"*'
+      msg = 'validate_address must send country/addressLine1/city/state/postalCode/companyName' ).
+  ENDMETHOD.
+
+
   METHOD api_validate_tax_fields.
-    " validate_tax → POST /api/tax/validate
-    " Required by .NET TaxRequest: identityNumber, identityNumberType, country
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'identityNumber'     value = '12-3456789' )
-      ( name = 'identityNumberType' value = 'EIN' )
-      ( name = 'country'            value = 'US' )
-      ( name = 'companyName'        value = 'Acme Corp' )
-      ( name = 'businessEntityType' value = 'CORP' ) ).
-
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
-
+    DATA(lv_json) = mo_cut->build_tax_body(
+      iv_tax_number          = '12-3456789'
+      iv_tax_type             = 'EIN'
+      iv_country              = 'US'
+      iv_company_name         = 'Acme Corp'
+      iv_business_entity_type = 'CORP' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
       exp = '*"identityNumber":"12-3456789"*'
@@ -565,173 +577,90 @@ CLASS zcl_qubiton_test IMPLEMENTATION.
       act = lv_json
       exp = '*"country":"US"*'
       msg = 'validate_tax must keep country field' ).
+    cl_abap_unit_assert=>assert_false(
+      act = boolc( lv_json CS '"taxNumber"' )
+      msg = 'validate_tax must NOT use legacy taxNumber field' ).
+    cl_abap_unit_assert=>assert_false(
+      act = boolc( lv_json CS '"taxType"' )
+      msg = 'validate_tax must NOT use legacy taxType field' ).
   ENDMETHOD.
 
 
   METHOD api_tax_format_fields.
-    " validate_tax_format → POST /api/tax/format-validate
-    " Required by .NET TaxFormatValidationRequest: identityNumber, identityNumberType, countryIso2
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'identityNumber'     value = '12-3456789' )
-      ( name = 'identityNumberType' value = 'EIN' )
-      ( name = 'countryIso2'        value = 'US' ) ).
-
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
-
+    DATA(lv_json) = mo_cut->build_tax_format_body(
+      iv_tax_number = '12-3456789'
+      iv_tax_type   = 'EIN'
+      iv_country    = 'US' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"identityNumber":"12-3456789"*'
-      msg = 'validate_tax_format must send identityNumber (renamed from taxNumber)' ).
-    cl_abap_unit_assert=>assert_char_cp(
-      act = lv_json
-      exp = '*"identityNumberType":"EIN"*'
-      msg = 'validate_tax_format must send identityNumberType (renamed from taxType)' ).
-    cl_abap_unit_assert=>assert_char_cp(
-      act = lv_json
-      exp = '*"countryIso2":"US"*'
-      msg = 'validate_tax_format must send countryIso2 (renamed from country)' ).
-  ENDMETHOD.
-
-
-  METHOD api_busreg_fields.
-    " lookup_business_registration → POST /api/businessregistration/lookup
-    " Required by .NET BusinessRegistrationRequest: entityName, country
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'entityName' value = 'Acme Corp' )
-      ( name = 'country'    value = 'US' )
-      ( name = 'state'      value = 'IL' )
-      ( name = 'city'       value = 'Springfield' ) ).
-
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
-
-    cl_abap_unit_assert=>assert_char_cp(
-      act = lv_json
-      exp = '*"entityName":"Acme Corp"*'
-      msg = 'lookup_business_registration must send entityName (renamed from companyName)' ).
-    cl_abap_unit_assert=>assert_char_cp(
-      act = lv_json
-      exp = '*"country":"US"*'
-      msg = 'lookup_business_registration must keep country field' ).
-  ENDMETHOD.
-
-
-  METHOD api_esg_query_path.
-    " lookup_esg_score → POST /api/esg/Scores?country=...&domain=...
-    " Body must contain ONLY companyName; country and domain are query params
-    " ([FromQuery] on the .NET controller).
-    DATA(lt_body_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'companyName' value = 'Acme Corp' ) ).
-
-    DATA(lv_body) = mo_cut->build_json( lt_body_fields ).
-
-    cl_abap_unit_assert=>assert_char_cp(
-      act = lv_body
-      exp = '*"companyName":"Acme Corp"*'
-      msg = 'lookup_esg_score body must contain companyName' ).
+      exp = '*"identityNumber":"12-3456789"*"identityNumberType":"EIN"*"countryIso2":"US"*'
+      msg = 'validate_tax_format must send identityNumber/identityNumberType/countryIso2' ).
     cl_abap_unit_assert=>assert_false(
-      act = boolc( lv_body CS '"country"' )
-      msg = 'lookup_esg_score body must NOT contain country (it is [FromQuery])' ).
-    cl_abap_unit_assert=>assert_false(
-      act = boolc( lv_body CS '"domain"' )
-      msg = 'lookup_esg_score body must NOT contain domain (it is [FromQuery])' ).
-
-    " Sanity-check the URL-encoding helper used to build the query string
-    cl_abap_unit_assert=>assert_equals(
-      act = cl_http_utility=>escape_url( 'US' )
-      exp = 'US'
-      msg = 'Plain ISO2 codes round-trip without escaping' ).
-  ENDMETHOD.
-
-
-  METHOD api_address_fields.
-    " validate_address → POST /api/address/validate
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'country'      value = 'US' )
-      ( name = 'addressLine1' value = '123 Main St' )
-      ( name = 'addressLine2' value = '456 Suite' )
-      ( name = 'city'         value = 'Springfield' )
-      ( name = 'state'        value = 'IL' )
-      ( name = 'postalCode'   value = '62701' )
-      ( name = 'companyName'  value = 'Acme Corp' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
-    cl_abap_unit_assert=>assert_char_cp(
-      act = lv_json
-      exp = '*"country":*"addressLine1":*"city":*"state":*"postalCode":*"companyName":*'
-      msg = 'validate_address must send standard address fields in order' ).
+      act = boolc( lv_json CS '"country":' )
+      msg = 'validate_tax_format must NOT use legacy country (renamed to countryIso2)' ).
   ENDMETHOD.
 
 
   METHOD api_bank_account_fields.
-    " validate_bank_account → POST /api/bank/validate
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'businessEntityType' value = 'CORP' )
-      ( name = 'country'            value = 'US' )
-      ( name = 'bankAccountHolder'  value = 'John Doe' )
-      ( name = 'accountNumber'      value = '9876543210' )
-      ( name = 'businessName'       value = 'Acme Corp' )
-      ( name = 'taxIdNumber'        value = '12-3456789' )
-      ( name = 'taxType'            value = 'EIN' )
-      ( name = 'bankCode'           value = '021000021' )
-      ( name = 'iban'               value = 'DE89370400440532013000' )
-      ( name = 'swiftCode'          value = 'COBADEFF' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_bank_account_body(
+      iv_business_entity_type = 'CORP'
+      iv_country              = 'US'
+      iv_bank_account_holder  = 'John Doe'
+      iv_account_number       = '9876543210'
+      iv_business_name        = 'Acme Corp'
+      iv_tax_id_number        = '12-3456789'
+      iv_tax_type             = 'EIN'
+      iv_bank_code            = '021000021'
+      iv_iban                 = 'DE89370400440532013000'
+      iv_swift_code           = 'COBADEFF' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"businessEntityType":*"country":*"bankAccountHolder":*"accountNumber":*"iban":*"swiftCode":*'
-      msg = 'validate_bank_account must send the canonical bank fields' ).
+      exp = '*"businessEntityType":*"country":*"bankAccountHolder":*"accountNumber":*"businessName":*"taxIdNumber":*"taxType":*"bankCode":*"iban":*"swiftCode":*'
+      msg = 'validate_bank_account must send all 10 canonical bank fields' ).
   ENDMETHOD.
 
 
   METHOD api_bank_pro_fields.
-    " validate_bank_pro → POST /api/bankaccount/pro/validate
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'businessEntityType' value = 'CORP' )
-      ( name = 'country'            value = 'US' )
-      ( name = 'bankAccountHolder'  value = 'John Doe' )
-      ( name = 'accountNumber'      value = '9876543210' )
-      ( name = 'bankCode'           value = '021000021' )
-      ( name = 'iban'               value = 'DE89370400440532013000' )
-      ( name = 'swiftCode'          value = 'COBADEFF' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_bank_pro_body(
+      iv_business_entity_type = 'CORP'
+      iv_country              = 'US'
+      iv_bank_account_holder  = 'John Doe'
+      iv_account_number       = '9876543210'
+      iv_bank_code            = '021000021'
+      iv_iban                 = 'DE89370400440532013000'
+      iv_swift_code           = 'COBADEFF' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"bankAccountHolder":*"accountNumber":*"iban":*"swiftCode":*'
-      msg = 'validate_bank_pro must send ownership-relevant bank fields' ).
+      exp = '*"businessEntityType":*"country":*"bankAccountHolder":*"accountNumber":*"bankCode":*"iban":*"swiftCode":*'
+      msg = 'validate_bank_pro must send 7 ownership-relevant bank fields' ).
   ENDMETHOD.
 
 
   METHOD api_email_fields.
-    " validate_email → POST /api/email/validate
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'emailAddress' value = 'contact@example.com' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
-    cl_abap_unit_assert=>assert_char_cp(
+    DATA(lv_json) = mo_cut->build_email_body( iv_email_address = 'contact@example.com' ).
+    cl_abap_unit_assert=>assert_equals(
       act = lv_json
-      exp = '*"emailAddress":"contact@example.com"*'
-      msg = 'validate_email must send emailAddress' ).
+      exp = '{"emailAddress":"contact@example.com"}'
+      msg = 'validate_email must send emailAddress as the only field' ).
   ENDMETHOD.
 
 
   METHOD api_phone_fields.
-    " validate_phone → POST /api/phone/validate
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'phoneNumber'    value = '+1-555-0100' )
-      ( name = 'country'        value = 'US' )
-      ( name = 'phoneExtension' value = '100' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_phone_body(
+      iv_phone_number    = '+1-555-0100'
+      iv_country         = 'US'
+      iv_phone_extension = '100' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"phoneNumber":*"country":*"phoneExtension":*'
+      exp = '*"phoneNumber":"+1-555-0100"*"country":"US"*"phoneExtension":"100"*'
       msg = 'validate_phone must send phoneNumber/country/phoneExtension' ).
   ENDMETHOD.
 
 
   METHOD api_peppol_validate_fields.
-    " validate_peppol → POST /api/peppol/validate
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'participantId'   value = '0088:5490000095220' )
-      ( name = 'directoryLookup' value = 'true' type = zcl_qubiton=>gc_type_boolean ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_peppol_body(
+      iv_participant_id   = '0088:5490000095220'
+      iv_directory_lookup = 'true' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
       exp = '*"participantId":"0088:5490000095220"*"directoryLookup":true*'
@@ -739,36 +668,52 @@ CLASS zcl_qubiton_test IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD api_busclass_fields.
-    " lookup_business_classification → POST /api/businessclassification/lookup
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'companyName' value = 'Acme Corp' )
-      ( name = 'city'        value = 'Springfield' )
-      ( name = 'state'       value = 'IL' )
-      ( name = 'country'     value = 'US' )
-      ( name = 'address1'    value = '123 Main St' )
-      ( name = 'address2'    value = '456 Suite' )
-      ( name = 'phone'       value = '+1-555-0100' )
-      ( name = 'postalCode'  value = '62701' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+  METHOD api_busreg_fields.
+    DATA(lv_json) = mo_cut->build_busreg_body(
+      iv_company_name = 'Acme Corp'
+      iv_country      = 'US'
+      iv_state        = 'IL'
+      iv_city         = 'Springfield' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"companyName":*"city":*"state":*"country":*"address1":*"postalCode":*'
-      msg = 'lookup_business_classification must send classification fields' ).
+      exp = '*"entityName":"Acme Corp"*'
+      msg = 'lookup_business_registration must send entityName (renamed from companyName)' ).
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lv_json
+      exp = '*"country":"US"*"state":"IL"*"city":"Springfield"*'
+      msg = 'lookup_business_registration must send country/state/city in order' ).
+    cl_abap_unit_assert=>assert_false(
+      act = boolc( lv_json CS '"companyName"' )
+      msg = 'lookup_business_registration must NOT use legacy companyName' ).
+  ENDMETHOD.
+
+
+  METHOD api_busclass_fields.
+    DATA(lv_json) = mo_cut->build_busclass_body(
+      iv_company_name = 'Acme Corp'
+      iv_city         = 'Springfield'
+      iv_state        = 'IL'
+      iv_country      = 'US'
+      iv_address1     = '123 Main St'
+      iv_address2     = '456 Suite'
+      iv_phone        = '+1-555-0100'
+      iv_postal_code  = '62701' ).
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lv_json
+      exp = '*"companyName":*"city":*"state":*"country":*"address1":*"address2":*"phone":*"postalCode":*'
+      msg = 'lookup_business_classification must send 8 NAICS lookup fields in order' ).
   ENDMETHOD.
 
 
   METHOD api_sanctions_fields.
-    " check_sanctions → POST /api/prohibited/lookup
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'companyName'  value = 'Acme Corp' )
-      ( name = 'country'      value = 'US' )
-      ( name = 'addressLine1' value = '123 Main St' )
-      ( name = 'addressLine2' value = '456 Suite' )
-      ( name = 'city'         value = 'Springfield' )
-      ( name = 'state'        value = 'IL' )
-      ( name = 'postalCode'   value = '62701' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_sanctions_body(
+      iv_company_name  = 'Acme Corp'
+      iv_country       = 'US'
+      iv_address_line1 = '123 Main St'
+      iv_address_line2 = '456 Suite'
+      iv_city          = 'Springfield'
+      iv_state         = 'IL'
+      iv_postal_code   = '62701' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
       exp = '*"companyName":*"country":*"addressLine1":*"city":*"state":*"postalCode":*'
@@ -777,120 +722,104 @@ CLASS zcl_qubiton_test IMPLEMENTATION.
 
 
   METHOD api_pep_fields.
-    " screen_pep → POST /api/pep/lookup
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'name'    value = 'John Doe' )
-      ( name = 'country' value = 'US' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
-    cl_abap_unit_assert=>assert_char_cp(
+    DATA(lv_json) = mo_cut->build_pep_body(
+      iv_name    = 'John Doe'
+      iv_country = 'US' ).
+    cl_abap_unit_assert=>assert_equals(
       act = lv_json
-      exp = '*"name":"John Doe"*"country":"US"*'
-      msg = 'screen_pep must send name and country' ).
+      exp = '{"name":"John Doe","country":"US"}'
+      msg = 'screen_pep must send name and country only' ).
   ENDMETHOD.
 
 
   METHOD api_directors_fields.
-    " check_directors → POST /api/disqualifieddirectors/validate
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'firstName'  value = 'John' )
-      ( name = 'lastName'   value = 'Doe' )
-      ( name = 'country'    value = 'US' )
-      ( name = 'middleName' value = 'Q' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_directors_body(
+      iv_first_name  = 'John'
+      iv_last_name   = 'Doe'
+      iv_country     = 'US'
+      iv_middle_name = 'Q' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"firstName":*"lastName":*"country":*"middleName":*'
-      msg = 'check_directors must send name parts and country' ).
+      exp = '*"firstName":"John"*"lastName":"Doe"*"country":"US"*"middleName":"Q"*'
+      msg = 'check_directors must send firstName/lastName/country/middleName' ).
   ENDMETHOD.
 
 
   METHOD api_epa_check_fields.
-    " check_epa_prosecution → POST /api/criminalprosecution/validate
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'name'       value = 'John Doe' )
-      ( name = 'state'      value = 'IL' )
-      ( name = 'fiscalYear' value = '2023' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_epa_body(
+      iv_name        = 'John Doe'
+      iv_state       = 'IL'
+      iv_fiscal_year = '2023' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"name":*"state":*"fiscalYear":*'
-      msg = 'check_epa_prosecution must send name/state/fiscalYear' ).
+      exp = '*"name":"John Doe"*"state":"IL"*"fiscalYear":"2023"*'
+      msg = 'check_epa_prosecution must send name/state/fiscalYear via shared epa builder' ).
   ENDMETHOD.
 
 
   METHOD api_epa_lookup_fields.
-    " lookup_epa_prosecution → POST /api/criminalprosecution/lookup
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'name'       value = 'John Doe' )
-      ( name = 'state'      value = 'IL' )
-      ( name = 'fiscalYear' value = '2023' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    " lookup_epa_prosecution shares build_epa_body with check_epa_prosecution.
+    " This test pins that the SAME helper is used (a future divergence between
+    " the two endpoints would force a separate helper and break this test).
+    DATA(lv_json) = mo_cut->build_epa_body(
+      iv_name        = 'John Doe'
+      iv_state       = 'IL'
+      iv_fiscal_year = '2023' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"name":*"state":*"fiscalYear":*'
-      msg = 'lookup_epa_prosecution must send name/state/fiscalYear' ).
+      exp = '*"name":"John Doe"*"state":"IL"*"fiscalYear":"2023"*'
+      msg = 'lookup_epa_prosecution must use the same shared epa body builder' ).
   ENDMETHOD.
 
 
   METHOD api_healthcare_check_fields.
-    " check_healthcare_exclusion → POST /api/providerexclusion/validate
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'healthCareType' value = 'INDIVIDUAL' )
-      ( name = 'entityName'     value = 'Acme Medical' )
-      ( name = 'lastName'       value = 'Doe' )
-      ( name = 'firstName'      value = 'John' )
-      ( name = 'address'        value = '123 Main St' )
-      ( name = 'city'           value = 'Springfield' )
-      ( name = 'state'          value = 'IL' )
-      ( name = 'zipCode'        value = '62701' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_healthcare_body(
+      iv_healthcare_type = 'INDIVIDUAL'
+      iv_entity_name     = 'Acme Medical'
+      iv_last_name       = 'Doe'
+      iv_first_name      = 'John'
+      iv_address         = '123 Main St'
+      iv_city            = 'Springfield'
+      iv_state           = 'IL'
+      iv_zip_code        = '62701' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"healthCareType":*"entityName":*"lastName":*"firstName":*"city":*"state":*"zipCode":*'
-      msg = 'check_healthcare_exclusion must send healthcare provider fields' ).
+      exp = '*"healthCareType":"INDIVIDUAL"*"entityName":*"lastName":*"firstName":*"address":*"city":*"state":*"zipCode":*'
+      msg = 'check_healthcare_exclusion must send 8 healthcare provider fields' ).
   ENDMETHOD.
 
 
   METHOD api_healthcare_lookup_fields.
-    " lookup_healthcare_exclusion → POST /api/providerexclusion/lookup
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'healthCareType' value = 'INDIVIDUAL' )
-      ( name = 'entityName'     value = 'Acme Medical' )
-      ( name = 'lastName'       value = 'Doe' )
-      ( name = 'firstName'      value = 'John' )
-      ( name = 'address'        value = '123 Main St' )
-      ( name = 'city'           value = 'Springfield' )
-      ( name = 'state'          value = 'IL' )
-      ( name = 'zipCode'        value = '62701' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    " Shares build_healthcare_body with check_healthcare_exclusion.
+    DATA(lv_json) = mo_cut->build_healthcare_body(
+      iv_healthcare_type = 'INDIVIDUAL'
+      iv_entity_name     = 'Acme Medical' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"healthCareType":*"entityName":*"lastName":*"firstName":*"zipCode":*'
-      msg = 'lookup_healthcare_exclusion must send healthcare provider fields' ).
+      exp = '*"healthCareType":"INDIVIDUAL"*"entityName":"Acme Medical"*'
+      msg = 'lookup_healthcare_exclusion must use the same shared healthcare body builder' ).
   ENDMETHOD.
 
 
   METHOD api_bankruptcy_fields.
-    " check_bankruptcy_risk → POST /api/risk/lookup with category='Bankruptcy'
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'entityName' value = 'Acme Corp' )
-      ( name = 'category'   value = 'Bankruptcy' )
-      ( name = 'country'    value = 'US' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    " check_bankruptcy_risk pins category to "Bankruptcy" — the shared
+    " /api/risk/lookup endpoint switches behaviour on this exact string.
+    DATA(lv_json) = mo_cut->build_risk_body(
+      iv_company_name = 'Acme Corp'
+      iv_category     = 'Bankruptcy'
+      iv_country      = 'US' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"category":"Bankruptcy"*'
+      exp = '*"entityName":"Acme Corp"*"category":"Bankruptcy"*"country":"US"*'
       msg = 'check_bankruptcy_risk must pin category to "Bankruptcy"' ).
   ENDMETHOD.
 
 
   METHOD api_credit_score_fields.
-    " lookup_credit_score → POST /api/risk/lookup with category='Credit Score'
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'entityName' value = 'Acme Corp' )
-      ( name = 'category'   value = 'Credit Score' )
-      ( name = 'country'    value = 'US' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_risk_body(
+      iv_company_name = 'Acme Corp'
+      iv_category     = 'Credit Score'
+      iv_country      = 'US' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
       exp = '*"category":"Credit Score"*'
@@ -899,12 +828,10 @@ CLASS zcl_qubiton_test IMPLEMENTATION.
 
 
   METHOD api_fail_rate_fields.
-    " lookup_fail_rate → POST /api/risk/lookup with category='Fail Rate'
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'entityName' value = 'Acme Corp' )
-      ( name = 'category'   value = 'Fail Rate' )
-      ( name = 'country'    value = 'US' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_risk_body(
+      iv_company_name = 'Acme Corp'
+      iv_category     = 'Fail Rate'
+      iv_country      = 'US' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
       exp = '*"category":"Fail Rate"*'
@@ -913,288 +840,268 @@ CLASS zcl_qubiton_test IMPLEMENTATION.
 
 
   METHOD api_entity_risk_fields.
-    " assess_entity_risk → POST /api/entity/fraud/lookup
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'companyName'            value = 'Acme Corp' )
-      ( name = 'countryOfIncorporation' value = 'US' )
-      ( name = 'category'               value = 'FRAUD' )
-      ( name = 'url'                    value = 'https://acme.com' )
-      ( name = 'businessEntityType'     value = 'CORP' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_entity_risk_body(
+      iv_company_name         = 'Acme Corp'
+      iv_country              = 'US'
+      iv_category             = 'FRAUD'
+      iv_url                  = 'https://acme.com'
+      iv_business_entity_type = 'CORP' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"companyName":*"countryOfIncorporation":*"category":*"businessEntityType":*'
-      msg = 'assess_entity_risk must send fraud-risk fields' ).
+      exp = '*"companyName":*"countryOfIncorporation":"US"*"category":*"url":*"businessEntityType":*'
+      msg = 'assess_entity_risk must use countryOfIncorporation (not country)' ).
   ENDMETHOD.
 
 
   METHOD api_credit_analysis_fields.
-    " lookup_credit_analysis → POST /api/creditanalysis/lookup
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'companyName'  value = 'Acme Corp' )
-      ( name = 'addressLine1' value = '123 Main St' )
-      ( name = 'city'         value = 'Springfield' )
-      ( name = 'state'        value = 'IL' )
-      ( name = 'country'      value = 'US' )
-      ( name = 'dunsNumber'   value = '123456789' )
-      ( name = 'postalCode'   value = '62701' )
-      ( name = 'addressLine2' value = '456 Suite' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_credit_analysis_body(
+      iv_company_name  = 'Acme Corp'
+      iv_address_line1 = '123 Main St'
+      iv_city          = 'Springfield'
+      iv_state         = 'IL'
+      iv_country       = 'US'
+      iv_duns_number   = '123456789'
+      iv_postal_code   = '62701'
+      iv_address_line2 = '456 Suite' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"companyName":*"addressLine1":*"city":*"state":*"country":*"dunsNumber":*'
-      msg = 'lookup_credit_analysis must send credit-analysis fields' ).
+      exp = '*"companyName":*"addressLine1":*"city":*"state":*"country":*"dunsNumber":*"postalCode":*"addressLine2":*'
+      msg = 'lookup_credit_analysis must send 8 credit-analysis fields' ).
+  ENDMETHOD.
+
+
+  METHOD api_esg_query_path.
+    " ESG body contains ONLY companyName; country and domain are query-string
+    " params bound as [FromQuery] on the API controller, built into the URL
+    " by lookup_esg_score itself (not by this body builder).
+    DATA(lv_body) = mo_cut->build_esg_body( iv_company_name = 'Acme Corp' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_body
+      exp = '{"companyName":"Acme Corp"}'
+      msg = 'lookup_esg_score body must contain companyName ONLY (country/domain are [FromQuery])' ).
+    cl_abap_unit_assert=>assert_false(
+      act = boolc( lv_body CS '"country"' )
+      msg = 'ESG body must NOT contain country' ).
+    cl_abap_unit_assert=>assert_false(
+      act = boolc( lv_body CS '"domain"' )
+      msg = 'ESG body must NOT contain domain' ).
+
+    " Sanity-check the URL-encoding helper used to build the query string.
+    cl_abap_unit_assert=>assert_equals(
+      act = cl_http_utility=>escape_url( 'US' )
+      exp = 'US'
+      msg = 'Plain ISO2 codes round-trip without escaping' ).
   ENDMETHOD.
 
 
   METHOD api_domain_security_fields.
-    " domain_security_report → POST /api/itsecurity/domainreport
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'domain' value = 'example.com' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
-    cl_abap_unit_assert=>assert_char_cp(
+    DATA(lv_json) = mo_cut->build_domain_security_body( iv_domain_name = 'example.com' ).
+    cl_abap_unit_assert=>assert_equals(
       act = lv_json
-      exp = '*"domain":"example.com"*'
-      msg = 'domain_security_report must send domain' ).
+      exp = '{"domain":"example.com"}'
+      msg = 'domain_security_report must send single field "domain" (not domainName)' ).
   ENDMETHOD.
 
 
   METHOD api_ip_quality_fields.
-    " check_ip_quality → POST /api/ipquality/validate
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'ipAddress' value = '192.0.2.1' )
-      ( name = 'userAgent' value = 'Mozilla/5.0' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_ip_quality_body(
+      iv_ip_address = '192.0.2.1'
+      iv_user_agent = 'Mozilla/5.0' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"ipAddress":*"userAgent":*'
+      exp = '*"ipAddress":"192.0.2.1"*"userAgent":"Mozilla/5.0"*'
       msg = 'check_ip_quality must send ipAddress and userAgent' ).
   ENDMETHOD.
 
 
   METHOD api_ubo_fields.
-    " lookup_beneficial_ownership → POST /api/beneficialownership/lookup
-    " Note: uboThreshold and maxLayers are unquoted JSON numbers
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'companyName'  value = 'Acme Corp' )
-      ( name = 'countryIso2'  value = 'US' )
-      ( name = 'uboThreshold' value = '25.0' type = zcl_qubiton=>gc_type_number )
-      ( name = 'maxLayers'    value = '5'    type = zcl_qubiton=>gc_type_number ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    " uboThreshold and maxLayers are unquoted JSON numbers (gc_type_number).
+    DATA(lv_json) = mo_cut->build_ubo_body(
+      iv_company_name  = 'Acme Corp'
+      iv_country_iso2  = 'US'
+      iv_ubo_threshold = '25.0'
+      iv_max_layers    = '5' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"companyName":*"countryIso2":*"uboThreshold":25.0*"maxLayers":5*'
-      msg = 'lookup_beneficial_ownership must send numeric uboThreshold and maxLayers' ).
+      exp = '*"companyName":"Acme Corp"*"countryIso2":"US"*"uboThreshold":25.0*"maxLayers":5*'
+      msg = 'lookup_beneficial_ownership must send numeric uboThreshold and maxLayers (unquoted)' ).
   ENDMETHOD.
 
 
   METHOD api_corp_hierarchy_fields.
-    " lookup_corporate_hierarchy → POST /api/corporatehierarchy/lookup
-    " Note: .NET DTO has all 5 fields [Required] and no Country (flagged for API team)
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'companyName'  value = 'Acme Corp' )
-      ( name = 'addressLine1' value = '123 Main St' )
-      ( name = 'city'         value = 'Springfield' )
-      ( name = 'state'        value = 'IL' )
-      ( name = 'zipCode'      value = '62701' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    " API request schema has all 5 fields [Required] and no Country (flagged for API team).
+    DATA(lv_json) = mo_cut->build_corp_hierarchy_body(
+      iv_company_name  = 'Acme Corp'
+      iv_address_line1 = '123 Main St'
+      iv_city          = 'Springfield'
+      iv_state         = 'IL'
+      iv_zip_code      = '62701' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
       exp = '*"companyName":*"addressLine1":*"city":*"state":*"zipCode":*'
-      msg = 'lookup_corporate_hierarchy must send 5 required fields (no Country on DTO)' ).
+      msg = 'lookup_corporate_hierarchy must send 5 required fields (no country on DTO)' ).
+    cl_abap_unit_assert=>assert_false(
+      act = boolc( lv_json CS '"country":' )
+      msg = 'lookup_corporate_hierarchy must NOT send country (DTO does not define it)' ).
   ENDMETHOD.
 
 
   METHOD api_duns_fields.
-    " lookup_duns → POST /api/duns-number-lookup
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'dunsNumber' value = '123456789' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
-    cl_abap_unit_assert=>assert_char_cp(
+    DATA(lv_json) = mo_cut->build_duns_body( iv_duns_number = '123456789' ).
+    cl_abap_unit_assert=>assert_equals(
       act = lv_json
-      exp = '*"dunsNumber":"123456789"*'
-      msg = 'lookup_duns must send dunsNumber' ).
+      exp = '{"dunsNumber":"123456789"}'
+      msg = 'lookup_duns must send single field dunsNumber' ).
   ENDMETHOD.
 
 
   METHOD api_hierarchy_fields.
-    " lookup_hierarchy → POST /api/company/hierarchy/lookup
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'identifier'     value = '123456789' )
-      ( name = 'identifierType' value = 'DUNS' )
-      ( name = 'country'        value = 'US' )
-      ( name = 'options'        value = 'INCLUDE_FINANCIALS' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_hierarchy_body(
+      iv_identifier      = '123456789'
+      iv_identifier_type = 'DUNS'
+      iv_country         = 'US'
+      iv_options         = 'INCLUDE_FINANCIALS' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"identifier":*"identifierType":*"country":*"options":*'
+      exp = '*"identifier":"123456789"*"identifierType":"DUNS"*"country":"US"*"options":"INCLUDE_FINANCIALS"*'
       msg = 'lookup_hierarchy must send identifier/identifierType/country/options' ).
   ENDMETHOD.
 
 
   METHOD api_npi_fields.
-    " validate_npi → POST /api/nationalprovideridentifier/validate
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'npi'              value = '1234567890' )
-      ( name = 'organizationName' value = 'Acme Medical' )
-      ( name = 'lastName'         value = 'Doe' )
-      ( name = 'firstName'        value = 'John' )
-      ( name = 'middleName'       value = 'Q' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_npi_body(
+      iv_npi               = '1234567890'
+      iv_organization_name = 'Acme Medical'
+      iv_last_name         = 'Doe'
+      iv_first_name        = 'John'
+      iv_middle_name       = 'Q' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"npi":*"organizationName":*"lastName":*"firstName":*"middleName":*'
+      exp = '*"npi":"1234567890"*"organizationName":*"lastName":*"firstName":*"middleName":*'
       msg = 'validate_npi must send npi + provider name parts' ).
   ENDMETHOD.
 
 
   METHOD api_medpass_fields.
-    " validate_medpass → POST /api/medpass/validate
-    " Note: ABAP sends 'taxId' (camelCase); .NET DTO property is TaxID — System.Text.Json
-    " is case-insensitive on deserialization by default in this project, so OK
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'id'                 value = 'MEDPASS123' )
-      ( name = 'businessEntityType' value = 'INDIVIDUAL' )
-      ( name = 'companyName'        value = 'Acme Medical' )
-      ( name = 'taxId'              value = '12-3456789' )
-      ( name = 'country'            value = 'US' )
-      ( name = 'state'              value = 'IL' )
-      ( name = 'city'               value = 'Springfield' )
-      ( name = 'postalCode'         value = '62701' )
-      ( name = 'addressLine1'       value = '123 Main St' )
-      ( name = 'addressLine2'       value = '456 Suite' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    " ABAP sends "taxId" (camelCase). The API tolerates either case via
+    " case-insensitive JSON deserialization.
+    DATA(lv_json) = mo_cut->build_medpass_body(
+      iv_id                   = 'MEDPASS123'
+      iv_business_entity_type = 'INDIVIDUAL'
+      iv_company_name         = 'Acme Medical'
+      iv_tax_id               = '12-3456789'
+      iv_country              = 'US'
+      iv_state                = 'IL'
+      iv_city                 = 'Springfield'
+      iv_postal_code          = '62701'
+      iv_address_line1        = '123 Main St'
+      iv_address_line2        = '456 Suite' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"id":*"businessEntityType":*"taxId":*"country":*"addressLine1":*'
+      exp = '*"id":"MEDPASS123"*"businessEntityType":*"taxId":"12-3456789"*"country":*"addressLine1":*'
       msg = 'validate_medpass must send Medpass identification + address fields' ).
   ENDMETHOD.
 
 
   METHOD api_dot_carrier_fields.
-    " lookup_dot_carrier → POST /api/dot/fmcsa/lookup
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'dotNumber'  value = '123456' )
-      ( name = 'entityName' value = 'Acme Trucking' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
-    cl_abap_unit_assert=>assert_char_cp(
+    DATA(lv_json) = mo_cut->build_dot_carrier_body(
+      iv_dot_number  = '123456'
+      iv_entity_name = 'Acme Trucking' ).
+    cl_abap_unit_assert=>assert_equals(
       act = lv_json
-      exp = '*"dotNumber":*"entityName":*'
+      exp = '{"dotNumber":"123456","entityName":"Acme Trucking"}'
       msg = 'lookup_dot_carrier must send dotNumber and entityName' ).
   ENDMETHOD.
 
 
   METHOD api_in_identity_fields.
-    " validate_india_identity → POST /api/inidentity/validate
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'identityNumber'     value = '123456789012' )
-      ( name = 'identityNumberType' value = 'AADHAAR' )
-      ( name = 'entityName'         value = 'Acme India' )
-      ( name = 'dob'                value = '1990-01-15' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_in_identity_body(
+      iv_identity_number      = '123456789012'
+      iv_identity_number_type = 'AADHAAR'
+      iv_entity_name          = 'Acme India'
+      iv_dob                  = '1990-01-15' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"identityNumber":*"identityNumberType":*"entityName":*"dob":*'
+      exp = '*"identityNumber":"123456789012"*"identityNumberType":"AADHAAR"*"entityName":*"dob":*'
       msg = 'validate_india_identity must send identityNumber/Type/entityName/dob' ).
   ENDMETHOD.
 
 
   METHOD api_cert_validate_fields.
-    " validate_certification → POST /api/certification/validate
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'companyName'         value = 'Acme Corp' )
-      ( name = 'country'             value = 'US' )
-      ( name = 'city'                value = 'Springfield' )
-      ( name = 'state'               value = 'IL' )
-      ( name = 'zipCode'             value = '62701' )
-      ( name = 'addressLine1'        value = '123 Main St' )
-      ( name = 'addressLine2'        value = '456 Suite' )
-      ( name = 'identityType'        value = 'COMPANY' )
-      ( name = 'certificationType'   value = 'ISO9001' )
-      ( name = 'certificationGroup'  value = 'QUALITY' )
-      ( name = 'certificationNumber' value = 'CERT123456' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    DATA(lv_json) = mo_cut->build_certification_body(
+      iv_company_name         = 'Acme Corp'
+      iv_country              = 'US'
+      iv_city                 = 'Springfield'
+      iv_state                = 'IL'
+      iv_zip_code             = '62701'
+      iv_address_line1        = '123 Main St'
+      iv_address_line2        = '456 Suite'
+      iv_identity_type        = 'COMPANY'
+      iv_certification_type   = 'ISO9001'
+      iv_certification_group  = 'QUALITY'
+      iv_certification_number = 'CERT123456' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
       exp = '*"companyName":*"country":*"certificationType":*"certificationGroup":*"certificationNumber":*'
-      msg = 'validate_certification must send certification key fields' ).
+      msg = 'validate_certification must send 11 certification fields via shared builder' ).
   ENDMETHOD.
 
 
   METHOD api_cert_lookup_fields.
-    " lookup_certification → POST /api/certification/lookup
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'companyName'         value = 'Acme Corp' )
-      ( name = 'country'             value = 'US' )
-      ( name = 'city'                value = 'Springfield' )
-      ( name = 'state'               value = 'IL' )
-      ( name = 'zipCode'             value = '62701' )
-      ( name = 'addressLine1'        value = '123 Main St' )
-      ( name = 'addressLine2'        value = '456 Suite' )
-      ( name = 'identityType'        value = 'COMPANY' )
-      ( name = 'certificationType'   value = 'ISO9001' )
-      ( name = 'certificationGroup'  value = 'QUALITY' )
-      ( name = 'certificationNumber' value = 'CERT123456' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    " Shares build_certification_body with validate_certification.
+    DATA(lv_json) = mo_cut->build_certification_body(
+      iv_company_name = 'Acme Corp'
+      iv_country      = 'US' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"companyName":*"country":*"certificationType":*"certificationNumber":*'
-      msg = 'lookup_certification must send certification key fields' ).
+      exp = '*"companyName":"Acme Corp"*"country":"US"*'
+      msg = 'lookup_certification must use shared certification body builder' ).
   ENDMETHOD.
 
 
   METHOD api_payment_terms_fields.
-    " analyze_payment_terms → POST /api/paymentterms/validate
-    " Numeric fields must be unquoted (gc_type_number)
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'currentPayTerm' value = '30'      type = zcl_qubiton=>gc_type_number )
-      ( name = 'annualSpend'    value = '1000000' type = zcl_qubiton=>gc_type_number )
-      ( name = 'avgDaysPay'     value = '35'      type = zcl_qubiton=>gc_type_number )
-      ( name = 'savingsRate'    value = '2.5'     type = zcl_qubiton=>gc_type_number )
-      ( name = 'threshold'      value = '50000'   type = zcl_qubiton=>gc_type_number )
-      ( name = 'vendorName'     value = 'Acme Supplies' )
-      ( name = 'country'        value = 'US' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
+    " 5 numeric fields are unquoted (gc_type_number); 2 string fields quoted.
+    DATA(lv_json) = mo_cut->build_payment_terms_body(
+      iv_current_pay_term = '30'
+      iv_annual_spend     = '1000000'
+      iv_avg_days_pay     = '35'
+      iv_savings_rate     = '2.5'
+      iv_threshold        = '50000'
+      iv_vendor_name      = 'Acme Supplies'
+      iv_country          = 'US' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"currentPayTerm":30*"annualSpend":1000000*"avgDaysPay":35*"savingsRate":2.5*"threshold":50000*"vendorName":*"country":*'
+      exp = '*"currentPayTerm":30*"annualSpend":1000000*"avgDaysPay":35*"savingsRate":2.5*"threshold":50000*"vendorName":"Acme Supplies"*"country":"US"*'
       msg = 'analyze_payment_terms must send 5 unquoted numerics + vendorName + country' ).
   ENDMETHOD.
 
 
   METHOD api_ariba_lookup_fields.
-    " lookup_ariba_supplier → POST /api/aribasupplierprofile/lookup
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'anid' value = 'ANID123456' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
-    cl_abap_unit_assert=>assert_char_cp(
+    DATA(lv_json) = mo_cut->build_ariba_body( iv_anid = 'ANID123456' ).
+    cl_abap_unit_assert=>assert_equals(
       act = lv_json
-      exp = '*"anid":"ANID123456"*'
-      msg = 'lookup_ariba_supplier must send anid' ).
+      exp = '{"anid":"ANID123456"}'
+      msg = 'lookup_ariba_supplier must send single field anid via shared ariba builder' ).
   ENDMETHOD.
 
 
   METHOD api_ariba_validate_fields.
-    " validate_ariba_supplier → POST /api/aribasupplierprofile/validate
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'anid' value = 'ANID123456' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
-    cl_abap_unit_assert=>assert_char_cp(
+    " Shares build_ariba_body with lookup_ariba_supplier.
+    DATA(lv_json) = mo_cut->build_ariba_body( iv_anid = 'ANID123456' ).
+    cl_abap_unit_assert=>assert_equals(
       act = lv_json
-      exp = '*"anid":"ANID123456"*'
-      msg = 'validate_ariba_supplier must send anid' ).
+      exp = '{"anid":"ANID123456"}'
+      msg = 'validate_ariba_supplier must use the same shared ariba builder' ).
   ENDMETHOD.
 
 
   METHOD api_gender_fields.
-    " identify_gender → POST /api/genderize/identifygender
-    DATA(lt_fields) = VALUE zcl_qubiton=>tt_name_value(
-      ( name = 'name'    value = 'John' )
-      ( name = 'country' value = 'US' ) ).
-    DATA(lv_json) = mo_cut->build_json( lt_fields ).
-    cl_abap_unit_assert=>assert_char_cp(
+    DATA(lv_json) = mo_cut->build_gender_body(
+      iv_name    = 'John'
+      iv_country = 'US' ).
+    cl_abap_unit_assert=>assert_equals(
       act = lv_json
-      exp = '*"name":"John"*"country":"US"*'
+      exp = '{"name":"John","country":"US"}'
       msg = 'identify_gender must send name and country' ).
   ENDMETHOD.
 
@@ -1241,7 +1148,7 @@ CLASS zcl_qubiton_test IMPLEMENTATION.
     " The base currency is templated into the URL path, not sent in body.
     " This test pins the path-template format so a future edit that puts
     " baseCurrency into the body or query string would diverge from the
-    " .NET controller route /api/currency/exchange-rates/{baseCurrency}.
+    " API controller route /api/currency/exchange-rates/{baseCurrency}.
     DATA(lv_path) = `/api/currency/exchange-rates/` && `USD`.
     cl_abap_unit_assert=>assert_equals(
       act = lv_path

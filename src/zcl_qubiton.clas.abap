@@ -742,6 +742,272 @@ CLASS zcl_qubiton DEFINITION
       RETURNING
         VALUE(rv_json) TYPE string.
 
+    " ── Per-endpoint body builders ──────────────────────────────────────
+    " Each helper builds the JSON request body for one QubitOn API endpoint.
+    " Extracted from the API methods so unit tests can verify the wire
+    " contract directly (instead of building expected field tables and
+    " hoping they match the method). Five helpers are shared across
+    " endpoints with identical request shapes (see comments on each).
+
+    METHODS build_address_body
+      IMPORTING iv_country       TYPE string
+                iv_address_line1 TYPE string OPTIONAL
+                iv_address_line2 TYPE string OPTIONAL
+                iv_city          TYPE string OPTIONAL
+                iv_state         TYPE string OPTIONAL
+                iv_postal_code   TYPE string OPTIONAL
+                iv_company_name  TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)   TYPE string.
+
+    METHODS build_tax_body
+      IMPORTING iv_tax_number          TYPE string
+                iv_tax_type            TYPE string
+                iv_country             TYPE string
+                iv_company_name        TYPE string
+                iv_business_entity_type TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)         TYPE string.
+
+    METHODS build_tax_format_body
+      IMPORTING iv_tax_number  TYPE string
+                iv_tax_type    TYPE string
+                iv_country     TYPE string
+      RETURNING VALUE(rv_json) TYPE string.
+
+    METHODS build_bank_account_body
+      IMPORTING iv_business_entity_type TYPE string
+                iv_country              TYPE string
+                iv_bank_account_holder  TYPE string
+                iv_account_number       TYPE string OPTIONAL
+                iv_business_name        TYPE string OPTIONAL
+                iv_tax_id_number        TYPE string OPTIONAL
+                iv_tax_type             TYPE string OPTIONAL
+                iv_bank_code            TYPE string OPTIONAL
+                iv_iban                 TYPE string OPTIONAL
+                iv_swift_code           TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)          TYPE string.
+
+    METHODS build_bank_pro_body
+      IMPORTING iv_business_entity_type TYPE string
+                iv_country              TYPE string
+                iv_bank_account_holder  TYPE string
+                iv_account_number       TYPE string OPTIONAL
+                iv_bank_code            TYPE string OPTIONAL
+                iv_iban                 TYPE string OPTIONAL
+                iv_swift_code           TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)          TYPE string.
+
+    METHODS build_email_body
+      IMPORTING iv_email_address TYPE string
+      RETURNING VALUE(rv_json)   TYPE string.
+
+    METHODS build_phone_body
+      IMPORTING iv_phone_number    TYPE string
+                iv_country         TYPE string
+                iv_phone_extension TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)     TYPE string.
+
+    METHODS build_peppol_body
+      IMPORTING iv_participant_id   TYPE string
+                iv_directory_lookup TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)      TYPE string.
+
+    METHODS build_busreg_body
+      IMPORTING iv_company_name TYPE string
+                iv_country      TYPE string
+                iv_state        TYPE string OPTIONAL
+                iv_city         TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)  TYPE string.
+
+    METHODS build_busclass_body
+      IMPORTING iv_company_name TYPE string
+                iv_city         TYPE string
+                iv_state        TYPE string
+                iv_country      TYPE string
+                iv_address1     TYPE string OPTIONAL
+                iv_address2     TYPE string OPTIONAL
+                iv_phone        TYPE string OPTIONAL
+                iv_postal_code  TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)  TYPE string.
+
+    METHODS build_sanctions_body
+      IMPORTING iv_company_name  TYPE string
+                iv_country       TYPE string
+                iv_address_line1 TYPE string OPTIONAL
+                iv_address_line2 TYPE string OPTIONAL
+                iv_city          TYPE string OPTIONAL
+                iv_state         TYPE string OPTIONAL
+                iv_postal_code   TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)   TYPE string.
+
+    METHODS build_pep_body
+      IMPORTING iv_name        TYPE string
+                iv_country     TYPE string
+      RETURNING VALUE(rv_json) TYPE string.
+
+    METHODS build_directors_body
+      IMPORTING iv_first_name  TYPE string
+                iv_last_name   TYPE string
+                iv_country     TYPE string
+                iv_middle_name TYPE string OPTIONAL
+      RETURNING VALUE(rv_json) TYPE string.
+
+    "! Shared by check_epa_prosecution and lookup_epa_prosecution
+    "! (identical request shape).
+    METHODS build_epa_body
+      IMPORTING iv_name        TYPE string OPTIONAL
+                iv_state       TYPE string OPTIONAL
+                iv_fiscal_year TYPE string OPTIONAL
+      RETURNING VALUE(rv_json) TYPE string.
+
+    "! Shared by check_healthcare_exclusion and lookup_healthcare_exclusion.
+    METHODS build_healthcare_body
+      IMPORTING iv_healthcare_type TYPE string
+                iv_entity_name     TYPE string OPTIONAL
+                iv_last_name       TYPE string OPTIONAL
+                iv_first_name      TYPE string OPTIONAL
+                iv_address         TYPE string OPTIONAL
+                iv_city            TYPE string OPTIONAL
+                iv_state           TYPE string OPTIONAL
+                iv_zip_code        TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)     TYPE string.
+
+    "! Shared by check_bankruptcy_risk, lookup_credit_score, lookup_fail_rate
+    "! (all POST /api/risk/lookup, distinguished by iv_category).
+    METHODS build_risk_body
+      IMPORTING iv_company_name TYPE string
+                iv_category     TYPE string
+                iv_country      TYPE string
+      RETURNING VALUE(rv_json)  TYPE string.
+
+    METHODS build_entity_risk_body
+      IMPORTING iv_company_name         TYPE string
+                iv_country              TYPE string OPTIONAL
+                iv_category             TYPE string OPTIONAL
+                iv_url                  TYPE string OPTIONAL
+                iv_business_entity_type TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)          TYPE string.
+
+    METHODS build_credit_analysis_body
+      IMPORTING iv_company_name  TYPE string
+                iv_address_line1 TYPE string
+                iv_city          TYPE string
+                iv_state         TYPE string
+                iv_country       TYPE string
+                iv_duns_number   TYPE string OPTIONAL
+                iv_postal_code   TYPE string OPTIONAL
+                iv_address_line2 TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)   TYPE string.
+
+    "! ESG body contains only companyName; country and domain are bound
+    "! as [FromQuery] on the API controller and built into the URL by
+    "! lookup_esg_score itself.
+    METHODS build_esg_body
+      IMPORTING iv_company_name TYPE string
+      RETURNING VALUE(rv_json)  TYPE string.
+
+    METHODS build_domain_security_body
+      IMPORTING iv_domain_name TYPE string
+      RETURNING VALUE(rv_json) TYPE string.
+
+    METHODS build_ip_quality_body
+      IMPORTING iv_ip_address  TYPE string
+                iv_user_agent  TYPE string OPTIONAL
+      RETURNING VALUE(rv_json) TYPE string.
+
+    METHODS build_ubo_body
+      IMPORTING iv_company_name  TYPE string
+                iv_country_iso2  TYPE string
+                iv_ubo_threshold TYPE string OPTIONAL
+                iv_max_layers    TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)   TYPE string.
+
+    METHODS build_corp_hierarchy_body
+      IMPORTING iv_company_name  TYPE string
+                iv_address_line1 TYPE string
+                iv_city          TYPE string
+                iv_state         TYPE string
+                iv_zip_code      TYPE string
+      RETURNING VALUE(rv_json)   TYPE string.
+
+    METHODS build_duns_body
+      IMPORTING iv_duns_number TYPE string
+      RETURNING VALUE(rv_json) TYPE string.
+
+    METHODS build_hierarchy_body
+      IMPORTING iv_identifier      TYPE string
+                iv_identifier_type TYPE string
+                iv_country         TYPE string OPTIONAL
+                iv_options         TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)     TYPE string.
+
+    METHODS build_npi_body
+      IMPORTING iv_npi               TYPE string
+                iv_organization_name TYPE string OPTIONAL
+                iv_last_name         TYPE string OPTIONAL
+                iv_first_name        TYPE string OPTIONAL
+                iv_middle_name       TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)       TYPE string.
+
+    METHODS build_medpass_body
+      IMPORTING iv_id                   TYPE string
+                iv_business_entity_type TYPE string
+                iv_company_name         TYPE string OPTIONAL
+                iv_tax_id               TYPE string OPTIONAL
+                iv_country              TYPE string OPTIONAL
+                iv_state                TYPE string OPTIONAL
+                iv_city                 TYPE string OPTIONAL
+                iv_postal_code          TYPE string OPTIONAL
+                iv_address_line1        TYPE string OPTIONAL
+                iv_address_line2        TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)          TYPE string.
+
+    METHODS build_dot_carrier_body
+      IMPORTING iv_dot_number  TYPE string
+                iv_entity_name TYPE string OPTIONAL
+      RETURNING VALUE(rv_json) TYPE string.
+
+    METHODS build_in_identity_body
+      IMPORTING iv_identity_number      TYPE string
+                iv_identity_number_type TYPE string
+                iv_entity_name          TYPE string OPTIONAL
+                iv_dob                  TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)          TYPE string.
+
+    "! Shared by validate_certification and lookup_certification.
+    METHODS build_certification_body
+      IMPORTING iv_company_name         TYPE string
+                iv_country              TYPE string
+                iv_city                 TYPE string OPTIONAL
+                iv_state                TYPE string OPTIONAL
+                iv_zip_code             TYPE string OPTIONAL
+                iv_address_line1        TYPE string OPTIONAL
+                iv_address_line2        TYPE string OPTIONAL
+                iv_identity_type        TYPE string OPTIONAL
+                iv_certification_type   TYPE string OPTIONAL
+                iv_certification_group  TYPE string OPTIONAL
+                iv_certification_number TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)          TYPE string.
+
+    METHODS build_payment_terms_body
+      IMPORTING iv_current_pay_term TYPE string
+                iv_annual_spend     TYPE string
+                iv_avg_days_pay     TYPE string
+                iv_savings_rate     TYPE string
+                iv_threshold        TYPE string
+                iv_vendor_name      TYPE string OPTIONAL
+                iv_country          TYPE string OPTIONAL
+      RETURNING VALUE(rv_json)      TYPE string.
+
+    "! Shared by lookup_ariba_supplier and validate_ariba_supplier.
+    METHODS build_ariba_body
+      IMPORTING iv_anid        TYPE string
+      RETURNING VALUE(rv_json) TYPE string.
+
+    METHODS build_gender_body
+      IMPORTING iv_name        TYPE string
+                iv_country     TYPE string OPTIONAL
+      RETURNING VALUE(rv_json) TYPE string.
+
     "! Check S_RFC authorization
     METHODS check_authority
       RAISING
@@ -1028,297 +1294,541 @@ CLASS zcl_qubiton IMPLEMENTATION.
   ENDMETHOD.
 
 
+  " ═══════════════════════════════════════════════════════════════════════
+  " Per-endpoint body builders
+  " ═══════════════════════════════════════════════════════════════════════
+
+  METHOD build_address_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'country'      value = iv_country )
+      ( name = 'addressLine1' value = iv_address_line1 )
+      ( name = 'addressLine2' value = iv_address_line2 )
+      ( name = 'city'         value = iv_city )
+      ( name = 'state'        value = iv_state )
+      ( name = 'postalCode'   value = iv_postal_code )
+      ( name = 'companyName'  value = iv_company_name ) ) ).
+  ENDMETHOD.
+
+  METHOD build_tax_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'identityNumber'     value = iv_tax_number )
+      ( name = 'identityNumberType' value = iv_tax_type )
+      ( name = 'country'            value = iv_country )
+      ( name = 'companyName'        value = iv_company_name )
+      ( name = 'businessEntityType' value = iv_business_entity_type ) ) ).
+  ENDMETHOD.
+
+  METHOD build_tax_format_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'identityNumber'     value = iv_tax_number )
+      ( name = 'identityNumberType' value = iv_tax_type )
+      ( name = 'countryIso2'        value = iv_country ) ) ).
+  ENDMETHOD.
+
+  METHOD build_bank_account_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'businessEntityType' value = iv_business_entity_type )
+      ( name = 'country'            value = iv_country )
+      ( name = 'bankAccountHolder'  value = iv_bank_account_holder )
+      ( name = 'accountNumber'      value = iv_account_number )
+      ( name = 'businessName'       value = iv_business_name )
+      ( name = 'taxIdNumber'        value = iv_tax_id_number )
+      ( name = 'taxType'            value = iv_tax_type )
+      ( name = 'bankCode'           value = iv_bank_code )
+      ( name = 'iban'               value = iv_iban )
+      ( name = 'swiftCode'          value = iv_swift_code ) ) ).
+  ENDMETHOD.
+
+  METHOD build_bank_pro_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'businessEntityType' value = iv_business_entity_type )
+      ( name = 'country'            value = iv_country )
+      ( name = 'bankAccountHolder'  value = iv_bank_account_holder )
+      ( name = 'accountNumber'      value = iv_account_number )
+      ( name = 'bankCode'           value = iv_bank_code )
+      ( name = 'iban'               value = iv_iban )
+      ( name = 'swiftCode'          value = iv_swift_code ) ) ).
+  ENDMETHOD.
+
+  METHOD build_email_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'emailAddress' value = iv_email_address ) ) ).
+  ENDMETHOD.
+
+  METHOD build_phone_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'phoneNumber'    value = iv_phone_number )
+      ( name = 'country'        value = iv_country )
+      ( name = 'phoneExtension' value = iv_phone_extension ) ) ).
+  ENDMETHOD.
+
+  METHOD build_peppol_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'participantId'   value = iv_participant_id )
+      ( name = 'directoryLookup' value = iv_directory_lookup type = gc_type_boolean ) ) ).
+  ENDMETHOD.
+
+  METHOD build_busreg_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'entityName' value = iv_company_name )
+      ( name = 'country'    value = iv_country )
+      ( name = 'state'      value = iv_state )
+      ( name = 'city'       value = iv_city ) ) ).
+  ENDMETHOD.
+
+  METHOD build_busclass_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'companyName' value = iv_company_name )
+      ( name = 'city'        value = iv_city )
+      ( name = 'state'       value = iv_state )
+      ( name = 'country'     value = iv_country )
+      ( name = 'address1'    value = iv_address1 )
+      ( name = 'address2'    value = iv_address2 )
+      ( name = 'phone'       value = iv_phone )
+      ( name = 'postalCode'  value = iv_postal_code ) ) ).
+  ENDMETHOD.
+
+  METHOD build_sanctions_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'companyName'  value = iv_company_name )
+      ( name = 'country'      value = iv_country )
+      ( name = 'addressLine1' value = iv_address_line1 )
+      ( name = 'addressLine2' value = iv_address_line2 )
+      ( name = 'city'         value = iv_city )
+      ( name = 'state'        value = iv_state )
+      ( name = 'postalCode'   value = iv_postal_code ) ) ).
+  ENDMETHOD.
+
+  METHOD build_pep_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'name'    value = iv_name )
+      ( name = 'country' value = iv_country ) ) ).
+  ENDMETHOD.
+
+  METHOD build_directors_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'firstName'  value = iv_first_name )
+      ( name = 'lastName'   value = iv_last_name )
+      ( name = 'country'    value = iv_country )
+      ( name = 'middleName' value = iv_middle_name ) ) ).
+  ENDMETHOD.
+
+  METHOD build_epa_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'name'       value = iv_name )
+      ( name = 'state'      value = iv_state )
+      ( name = 'fiscalYear' value = iv_fiscal_year ) ) ).
+  ENDMETHOD.
+
+  METHOD build_healthcare_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'healthCareType' value = iv_healthcare_type )
+      ( name = 'entityName'     value = iv_entity_name )
+      ( name = 'lastName'       value = iv_last_name )
+      ( name = 'firstName'      value = iv_first_name )
+      ( name = 'address'        value = iv_address )
+      ( name = 'city'           value = iv_city )
+      ( name = 'state'          value = iv_state )
+      ( name = 'zipCode'        value = iv_zip_code ) ) ).
+  ENDMETHOD.
+
+  METHOD build_risk_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'entityName' value = iv_company_name )
+      ( name = 'category'   value = iv_category )
+      ( name = 'country'    value = iv_country ) ) ).
+  ENDMETHOD.
+
+  METHOD build_entity_risk_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'companyName'            value = iv_company_name )
+      ( name = 'countryOfIncorporation' value = iv_country )
+      ( name = 'category'               value = iv_category )
+      ( name = 'url'                    value = iv_url )
+      ( name = 'businessEntityType'     value = iv_business_entity_type ) ) ).
+  ENDMETHOD.
+
+  METHOD build_credit_analysis_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'companyName'  value = iv_company_name )
+      ( name = 'addressLine1' value = iv_address_line1 )
+      ( name = 'city'         value = iv_city )
+      ( name = 'state'        value = iv_state )
+      ( name = 'country'      value = iv_country )
+      ( name = 'dunsNumber'   value = iv_duns_number )
+      ( name = 'postalCode'   value = iv_postal_code )
+      ( name = 'addressLine2' value = iv_address_line2 ) ) ).
+  ENDMETHOD.
+
+  METHOD build_esg_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'companyName' value = iv_company_name ) ) ).
+  ENDMETHOD.
+
+  METHOD build_domain_security_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'domain' value = iv_domain_name ) ) ).
+  ENDMETHOD.
+
+  METHOD build_ip_quality_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'ipAddress' value = iv_ip_address )
+      ( name = 'userAgent' value = iv_user_agent ) ) ).
+  ENDMETHOD.
+
+  METHOD build_ubo_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'companyName'  value = iv_company_name )
+      ( name = 'countryIso2'  value = iv_country_iso2 )
+      ( name = 'uboThreshold' value = iv_ubo_threshold type = gc_type_number )
+      ( name = 'maxLayers'    value = iv_max_layers    type = gc_type_number ) ) ).
+  ENDMETHOD.
+
+  METHOD build_corp_hierarchy_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'companyName'  value = iv_company_name )
+      ( name = 'addressLine1' value = iv_address_line1 )
+      ( name = 'city'         value = iv_city )
+      ( name = 'state'        value = iv_state )
+      ( name = 'zipCode'      value = iv_zip_code ) ) ).
+  ENDMETHOD.
+
+  METHOD build_duns_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'dunsNumber' value = iv_duns_number ) ) ).
+  ENDMETHOD.
+
+  METHOD build_hierarchy_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'identifier'     value = iv_identifier )
+      ( name = 'identifierType' value = iv_identifier_type )
+      ( name = 'country'        value = iv_country )
+      ( name = 'options'        value = iv_options ) ) ).
+  ENDMETHOD.
+
+  METHOD build_npi_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'npi'              value = iv_npi )
+      ( name = 'organizationName' value = iv_organization_name )
+      ( name = 'lastName'         value = iv_last_name )
+      ( name = 'firstName'        value = iv_first_name )
+      ( name = 'middleName'       value = iv_middle_name ) ) ).
+  ENDMETHOD.
+
+  METHOD build_medpass_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'id'                 value = iv_id )
+      ( name = 'businessEntityType' value = iv_business_entity_type )
+      ( name = 'companyName'        value = iv_company_name )
+      ( name = 'taxId'              value = iv_tax_id )
+      ( name = 'country'            value = iv_country )
+      ( name = 'state'              value = iv_state )
+      ( name = 'city'               value = iv_city )
+      ( name = 'postalCode'         value = iv_postal_code )
+      ( name = 'addressLine1'       value = iv_address_line1 )
+      ( name = 'addressLine2'       value = iv_address_line2 ) ) ).
+  ENDMETHOD.
+
+  METHOD build_dot_carrier_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'dotNumber'  value = iv_dot_number )
+      ( name = 'entityName' value = iv_entity_name ) ) ).
+  ENDMETHOD.
+
+  METHOD build_in_identity_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'identityNumber'     value = iv_identity_number )
+      ( name = 'identityNumberType' value = iv_identity_number_type )
+      ( name = 'entityName'         value = iv_entity_name )
+      ( name = 'dob'                value = iv_dob ) ) ).
+  ENDMETHOD.
+
+  METHOD build_certification_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'companyName'         value = iv_company_name )
+      ( name = 'country'             value = iv_country )
+      ( name = 'city'                value = iv_city )
+      ( name = 'state'               value = iv_state )
+      ( name = 'zipCode'             value = iv_zip_code )
+      ( name = 'addressLine1'        value = iv_address_line1 )
+      ( name = 'addressLine2'        value = iv_address_line2 )
+      ( name = 'identityType'        value = iv_identity_type )
+      ( name = 'certificationType'   value = iv_certification_type )
+      ( name = 'certificationGroup'  value = iv_certification_group )
+      ( name = 'certificationNumber' value = iv_certification_number ) ) ).
+  ENDMETHOD.
+
+  METHOD build_payment_terms_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'currentPayTerm' value = iv_current_pay_term type = gc_type_number )
+      ( name = 'annualSpend'    value = iv_annual_spend     type = gc_type_number )
+      ( name = 'avgDaysPay'     value = iv_avg_days_pay     type = gc_type_number )
+      ( name = 'savingsRate'    value = iv_savings_rate     type = gc_type_number )
+      ( name = 'threshold'      value = iv_threshold        type = gc_type_number )
+      ( name = 'vendorName'     value = iv_vendor_name )
+      ( name = 'country'        value = iv_country ) ) ).
+  ENDMETHOD.
+
+  METHOD build_ariba_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'anid' value = iv_anid ) ) ).
+  ENDMETHOD.
+
+  METHOD build_gender_body.
+    rv_json = build_json( VALUE #(
+      ( name = 'name'    value = iv_name )
+      ( name = 'country' value = iv_country ) ) ).
+  ENDMETHOD.
+
+
   " ── Address Validation ──────────────────────────────────────────────────
 
   METHOD validate_address.
-    rv_json = post(
-      iv_path = '/api/address/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'country'      value = iv_country )
-        ( name = 'addressLine1' value = iv_address_line1 )
-        ( name = 'addressLine2' value = iv_address_line2 )
-        ( name = 'city'         value = iv_city )
-        ( name = 'state'        value = iv_state )
-        ( name = 'postalCode'   value = iv_postal_code )
-        ( name = 'companyName'  value = iv_company_name )
-      ) ) ).
+    rv_json = post( iv_path = '/api/address/validate'
+                    iv_body = build_address_body(
+                      iv_country       = iv_country
+                      iv_address_line1 = iv_address_line1
+                      iv_address_line2 = iv_address_line2
+                      iv_city          = iv_city
+                      iv_state         = iv_state
+                      iv_postal_code   = iv_postal_code
+                      iv_company_name  = iv_company_name ) ).
   ENDMETHOD.
 
 
   " ── Tax Validation ────────────────────────────────────────────────────
 
   METHOD validate_tax.
-    rv_json = post(
-      iv_path = '/api/tax/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'identityNumber'     value = iv_tax_number )
-        ( name = 'identityNumberType' value = iv_tax_type )
-        ( name = 'country'            value = iv_country )
-        ( name = 'companyName'        value = iv_company_name )
-        ( name = 'businessEntityType' value = iv_business_entity_type )
-      ) ) ).
+    rv_json = post( iv_path = '/api/tax/validate'
+                    iv_body = build_tax_body(
+                      iv_tax_number          = iv_tax_number
+                      iv_tax_type            = iv_tax_type
+                      iv_country             = iv_country
+                      iv_company_name        = iv_company_name
+                      iv_business_entity_type = iv_business_entity_type ) ).
   ENDMETHOD.
 
 
   METHOD validate_tax_format.
-    rv_json = post(
-      iv_path = '/api/tax/format-validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'identityNumber'     value = iv_tax_number )
-        ( name = 'identityNumberType' value = iv_tax_type )
-        ( name = 'countryIso2'        value = iv_country )
-      ) ) ).
+    rv_json = post( iv_path = '/api/tax/format-validate'
+                    iv_body = build_tax_format_body(
+                      iv_tax_number = iv_tax_number
+                      iv_tax_type   = iv_tax_type
+                      iv_country    = iv_country ) ).
   ENDMETHOD.
 
 
   " ── Bank Account Validation ─────────────────────────────────────────────
 
   METHOD validate_bank_account.
-    rv_json = post(
-      iv_path = '/api/bank/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'businessEntityType' value = iv_business_entity_type )
-        ( name = 'country'            value = iv_country )
-        ( name = 'bankAccountHolder'  value = iv_bank_account_holder )
-        ( name = 'accountNumber'      value = iv_account_number )
-        ( name = 'businessName'       value = iv_business_name )
-        ( name = 'taxIdNumber'        value = iv_tax_id_number )
-        ( name = 'taxType'            value = iv_tax_type )
-        ( name = 'bankCode'           value = iv_bank_code )
-        ( name = 'iban'               value = iv_iban )
-        ( name = 'swiftCode'          value = iv_swift_code )
-      ) ) ).
+    rv_json = post( iv_path = '/api/bank/validate'
+                    iv_body = build_bank_account_body(
+                      iv_business_entity_type = iv_business_entity_type
+                      iv_country              = iv_country
+                      iv_bank_account_holder  = iv_bank_account_holder
+                      iv_account_number       = iv_account_number
+                      iv_business_name        = iv_business_name
+                      iv_tax_id_number        = iv_tax_id_number
+                      iv_tax_type             = iv_tax_type
+                      iv_bank_code            = iv_bank_code
+                      iv_iban                 = iv_iban
+                      iv_swift_code           = iv_swift_code ) ).
   ENDMETHOD.
 
 
   METHOD validate_bank_pro.
-    rv_json = post(
-      iv_path = '/api/bankaccount/pro/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'businessEntityType' value = iv_business_entity_type )
-        ( name = 'country'            value = iv_country )
-        ( name = 'bankAccountHolder'  value = iv_bank_account_holder )
-        ( name = 'accountNumber'      value = iv_account_number )
-        ( name = 'bankCode'           value = iv_bank_code )
-        ( name = 'iban'               value = iv_iban )
-        ( name = 'swiftCode'          value = iv_swift_code )
-      ) ) ).
+    rv_json = post( iv_path = '/api/bankaccount/pro/validate'
+                    iv_body = build_bank_pro_body(
+                      iv_business_entity_type = iv_business_entity_type
+                      iv_country              = iv_country
+                      iv_bank_account_holder  = iv_bank_account_holder
+                      iv_account_number       = iv_account_number
+                      iv_bank_code            = iv_bank_code
+                      iv_iban                 = iv_iban
+                      iv_swift_code           = iv_swift_code ) ).
   ENDMETHOD.
 
 
   " ── Email & Phone Validation ────────────────────────────────────────────
 
   METHOD validate_email.
-    rv_json = post(
-      iv_path = '/api/email/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'emailAddress' value = iv_email_address )
-      ) ) ).
+    rv_json = post( iv_path = '/api/email/validate'
+                    iv_body = build_email_body( iv_email_address = iv_email_address ) ).
   ENDMETHOD.
 
 
   METHOD validate_phone.
-    rv_json = post(
-      iv_path = '/api/phone/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'phoneNumber'    value = iv_phone_number )
-        ( name = 'country'        value = iv_country )
-        ( name = 'phoneExtension' value = iv_phone_extension )
-      ) ) ).
+    rv_json = post( iv_path = '/api/phone/validate'
+                    iv_body = build_phone_body(
+                      iv_phone_number    = iv_phone_number
+                      iv_country         = iv_country
+                      iv_phone_extension = iv_phone_extension ) ).
   ENDMETHOD.
 
 
   " ── Business Registration ───────────────────────────────────────────────
 
   METHOD lookup_business_registration.
-    rv_json = post(
-      iv_path = '/api/businessregistration/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'entityName' value = iv_company_name )
-        ( name = 'country'    value = iv_country )
-        ( name = 'state'      value = iv_state )
-        ( name = 'city'       value = iv_city )
-      ) ) ).
+    rv_json = post( iv_path = '/api/businessregistration/lookup'
+                    iv_body = build_busreg_body(
+                      iv_company_name = iv_company_name
+                      iv_country      = iv_country
+                      iv_state        = iv_state
+                      iv_city         = iv_city ) ).
   ENDMETHOD.
 
 
   " ── Peppol ──────────────────────────────────────────────────────────────
 
   METHOD validate_peppol.
-    rv_json = post(
-      iv_path = '/api/peppol/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'participantId'   value = iv_participant_id )
-        ( name = 'directoryLookup' value = iv_directory_lookup type = gc_type_boolean )
-      ) ) ).
+    rv_json = post( iv_path = '/api/peppol/validate'
+                    iv_body = build_peppol_body(
+                      iv_participant_id   = iv_participant_id
+                      iv_directory_lookup = iv_directory_lookup ) ).
   ENDMETHOD.
 
 
   " ── Sanctions & Compliance ──────────────────────────────────────────────
 
   METHOD check_sanctions.
-    rv_json = post(
-      iv_path = '/api/prohibited/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'companyName'  value = iv_company_name )
-        ( name = 'country'      value = iv_country )
-        ( name = 'addressLine1' value = iv_address_line1 )
-        ( name = 'addressLine2' value = iv_address_line2 )
-        ( name = 'city'         value = iv_city )
-        ( name = 'state'        value = iv_state )
-        ( name = 'postalCode'   value = iv_postal_code )
-      ) ) ).
+    rv_json = post( iv_path = '/api/prohibited/lookup'
+                    iv_body = build_sanctions_body(
+                      iv_company_name  = iv_company_name
+                      iv_country       = iv_country
+                      iv_address_line1 = iv_address_line1
+                      iv_address_line2 = iv_address_line2
+                      iv_city          = iv_city
+                      iv_state         = iv_state
+                      iv_postal_code   = iv_postal_code ) ).
   ENDMETHOD.
 
 
   METHOD screen_pep.
-    rv_json = post(
-      iv_path = '/api/pep/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'name'    value = iv_name )
-        ( name = 'country' value = iv_country )
-      ) ) ).
+    rv_json = post( iv_path = '/api/pep/lookup'
+                    iv_body = build_pep_body(
+                      iv_name    = iv_name
+                      iv_country = iv_country ) ).
   ENDMETHOD.
 
 
   METHOD check_directors.
-    rv_json = post(
-      iv_path = '/api/disqualifieddirectors/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'firstName'  value = iv_first_name )
-        ( name = 'lastName'   value = iv_last_name )
-        ( name = 'country'    value = iv_country )
-        ( name = 'middleName' value = iv_middle_name )
-      ) ) ).
+    rv_json = post( iv_path = '/api/disqualifieddirectors/validate'
+                    iv_body = build_directors_body(
+                      iv_first_name  = iv_first_name
+                      iv_last_name   = iv_last_name
+                      iv_country     = iv_country
+                      iv_middle_name = iv_middle_name ) ).
   ENDMETHOD.
 
 
   " ── EPA Prosecution ─────────────────────────────────────────────────────
 
   METHOD check_epa_prosecution.
-    rv_json = post(
-      iv_path = '/api/criminalprosecution/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'name'       value = iv_name )
-        ( name = 'state'      value = iv_state )
-        ( name = 'fiscalYear' value = iv_fiscal_year )
-      ) ) ).
+    rv_json = post( iv_path = '/api/criminalprosecution/validate'
+                    iv_body = build_epa_body(
+                      iv_name        = iv_name
+                      iv_state       = iv_state
+                      iv_fiscal_year = iv_fiscal_year ) ).
   ENDMETHOD.
 
 
   METHOD lookup_epa_prosecution.
-    rv_json = post(
-      iv_path = '/api/criminalprosecution/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'name'       value = iv_name )
-        ( name = 'state'      value = iv_state )
-        ( name = 'fiscalYear' value = iv_fiscal_year )
-      ) ) ).
+    rv_json = post( iv_path = '/api/criminalprosecution/lookup'
+                    iv_body = build_epa_body(
+                      iv_name        = iv_name
+                      iv_state       = iv_state
+                      iv_fiscal_year = iv_fiscal_year ) ).
   ENDMETHOD.
 
 
   " ── Healthcare Exclusion ────────────────────────────────────────────────
 
   METHOD check_healthcare_exclusion.
-    rv_json = post(
-      iv_path = '/api/providerexclusion/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'healthCareType' value = iv_healthcare_type )
-        ( name = 'entityName'     value = iv_entity_name )
-        ( name = 'lastName'       value = iv_last_name )
-        ( name = 'firstName'      value = iv_first_name )
-        ( name = 'address'        value = iv_address )
-        ( name = 'city'           value = iv_city )
-        ( name = 'state'          value = iv_state )
-        ( name = 'zipCode'        value = iv_zip_code )
-      ) ) ).
+    rv_json = post( iv_path = '/api/providerexclusion/validate'
+                    iv_body = build_healthcare_body(
+                      iv_healthcare_type = iv_healthcare_type
+                      iv_entity_name     = iv_entity_name
+                      iv_last_name       = iv_last_name
+                      iv_first_name      = iv_first_name
+                      iv_address         = iv_address
+                      iv_city            = iv_city
+                      iv_state           = iv_state
+                      iv_zip_code        = iv_zip_code ) ).
   ENDMETHOD.
 
 
   METHOD lookup_healthcare_exclusion.
-    rv_json = post(
-      iv_path = '/api/providerexclusion/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'healthCareType' value = iv_healthcare_type )
-        ( name = 'entityName'     value = iv_entity_name )
-        ( name = 'lastName'       value = iv_last_name )
-        ( name = 'firstName'      value = iv_first_name )
-        ( name = 'address'        value = iv_address )
-        ( name = 'city'           value = iv_city )
-        ( name = 'state'          value = iv_state )
-        ( name = 'zipCode'        value = iv_zip_code )
-      ) ) ).
+    rv_json = post( iv_path = '/api/providerexclusion/lookup'
+                    iv_body = build_healthcare_body(
+                      iv_healthcare_type = iv_healthcare_type
+                      iv_entity_name     = iv_entity_name
+                      iv_last_name       = iv_last_name
+                      iv_first_name      = iv_first_name
+                      iv_address         = iv_address
+                      iv_city            = iv_city
+                      iv_state           = iv_state
+                      iv_zip_code        = iv_zip_code ) ).
   ENDMETHOD.
 
 
   " ── Risk & Financial ────────────────────────────────────────────────────
 
   METHOD check_bankruptcy_risk.
-    rv_json = post(
-      iv_path = '/api/risk/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'entityName' value = iv_company_name )
-        ( name = 'category'   value = 'Bankruptcy' )
-        ( name = 'country'    value = iv_country )
-      ) ) ).
+    rv_json = post( iv_path = '/api/risk/lookup'
+                    iv_body = build_risk_body(
+                      iv_company_name = iv_company_name
+                      iv_category     = 'Bankruptcy'
+                      iv_country      = iv_country ) ).
   ENDMETHOD.
 
 
   METHOD lookup_credit_score.
-    rv_json = post(
-      iv_path = '/api/risk/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'entityName' value = iv_company_name )
-        ( name = 'category'   value = 'Credit Score' )
-        ( name = 'country'    value = iv_country )
-      ) ) ).
+    rv_json = post( iv_path = '/api/risk/lookup'
+                    iv_body = build_risk_body(
+                      iv_company_name = iv_company_name
+                      iv_category     = 'Credit Score'
+                      iv_country      = iv_country ) ).
   ENDMETHOD.
 
 
   METHOD lookup_fail_rate.
-    rv_json = post(
-      iv_path = '/api/risk/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'entityName' value = iv_company_name )
-        ( name = 'category'   value = 'Fail Rate' )
-        ( name = 'country'    value = iv_country )
-      ) ) ).
+    rv_json = post( iv_path = '/api/risk/lookup'
+                    iv_body = build_risk_body(
+                      iv_company_name = iv_company_name
+                      iv_category     = 'Fail Rate'
+                      iv_country      = iv_country ) ).
   ENDMETHOD.
 
 
   METHOD assess_entity_risk.
-    rv_json = post(
-      iv_path = '/api/entity/fraud/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'companyName'            value = iv_company_name )
-        ( name = 'countryOfIncorporation' value = iv_country )
-        ( name = 'category'               value = iv_category )
-        ( name = 'url'                    value = iv_url )
-        ( name = 'businessEntityType'     value = iv_business_entity_type )
-      ) ) ).
+    rv_json = post( iv_path = '/api/entity/fraud/lookup'
+                    iv_body = build_entity_risk_body(
+                      iv_company_name         = iv_company_name
+                      iv_country              = iv_country
+                      iv_category             = iv_category
+                      iv_url                  = iv_url
+                      iv_business_entity_type = iv_business_entity_type ) ).
   ENDMETHOD.
 
 
   METHOD lookup_credit_analysis.
-    rv_json = post(
-      iv_path = '/api/creditanalysis/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'companyName'  value = iv_company_name )
-        ( name = 'addressLine1' value = iv_address_line1 )
-        ( name = 'city'         value = iv_city )
-        ( name = 'state'        value = iv_state )
-        ( name = 'country'      value = iv_country )
-        ( name = 'dunsNumber'   value = iv_duns_number )
-        ( name = 'postalCode'   value = iv_postal_code )
-        ( name = 'addressLine2' value = iv_address_line2 )
-      ) ) ).
+    rv_json = post( iv_path = '/api/creditanalysis/lookup'
+                    iv_body = build_credit_analysis_body(
+                      iv_company_name  = iv_company_name
+                      iv_address_line1 = iv_address_line1
+                      iv_city          = iv_city
+                      iv_state         = iv_state
+                      iv_country       = iv_country
+                      iv_duns_number   = iv_duns_number
+                      iv_postal_code   = iv_postal_code
+                      iv_address_line2 = iv_address_line2 ) ).
   ENDMETHOD.
 
 
   " ── ESG & Cybersecurity ─────────────────────────────────────────────────
 
   METHOD lookup_esg_score.
-    " country and domain are bound as [FromQuery] on the .NET controller, not body.
+    " country and domain are bound as [FromQuery] on the API controller, not body.
     " Only companyName goes in the JSON body (esgId not exposed by this connector method).
     DATA lv_path TYPE string.
     DATA lv_qs   TYPE string.
@@ -1336,208 +1846,175 @@ CLASS zcl_qubiton IMPLEMENTATION.
 
     lv_path = `/api/esg/Scores` && lv_qs.
 
-    rv_json = post(
-      iv_path = lv_path
-      iv_body = build_json( VALUE #(
-        ( name = 'companyName' value = iv_company_name )
-      ) ) ).
+    rv_json = post( iv_path = lv_path
+                    iv_body = build_esg_body( iv_company_name = iv_company_name ) ).
   ENDMETHOD.
 
 
   METHOD domain_security_report.
-    rv_json = post(
-      iv_path = '/api/itsecurity/domainreport'
-      iv_body = build_json( VALUE #(
-        ( name = 'domain' value = iv_domain_name )
-      ) ) ).
+    rv_json = post( iv_path = '/api/itsecurity/domainreport'
+                    iv_body = build_domain_security_body( iv_domain_name = iv_domain_name ) ).
   ENDMETHOD.
 
 
   METHOD check_ip_quality.
-    rv_json = post(
-      iv_path = '/api/ipquality/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'ipAddress' value = iv_ip_address )
-        ( name = 'userAgent' value = iv_user_agent )
-      ) ) ).
+    rv_json = post( iv_path = '/api/ipquality/validate'
+                    iv_body = build_ip_quality_body(
+                      iv_ip_address = iv_ip_address
+                      iv_user_agent = iv_user_agent ) ).
   ENDMETHOD.
 
 
   " ── Corporate Structure ─────────────────────────────────────────────────
 
   METHOD lookup_beneficial_ownership.
-    rv_json = post(
-      iv_path = '/api/beneficialownership/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'companyName'  value = iv_company_name )
-        ( name = 'countryIso2'  value = iv_country_iso2 )
-        ( name = 'uboThreshold' value = iv_ubo_threshold type = gc_type_number )
-        ( name = 'maxLayers'    value = iv_max_layers    type = gc_type_number )
-      ) ) ).
+    rv_json = post( iv_path = '/api/beneficialownership/lookup'
+                    iv_body = build_ubo_body(
+                      iv_company_name  = iv_company_name
+                      iv_country_iso2  = iv_country_iso2
+                      iv_ubo_threshold = iv_ubo_threshold
+                      iv_max_layers    = iv_max_layers ) ).
   ENDMETHOD.
 
 
   METHOD lookup_corporate_hierarchy.
-    rv_json = post(
-      iv_path = '/api/corporatehierarchy/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'companyName'  value = iv_company_name )
-        ( name = 'addressLine1' value = iv_address_line1 )
-        ( name = 'city'         value = iv_city )
-        ( name = 'state'        value = iv_state )
-        ( name = 'zipCode'      value = iv_zip_code )
-      ) ) ).
+    rv_json = post( iv_path = '/api/corporatehierarchy/lookup'
+                    iv_body = build_corp_hierarchy_body(
+                      iv_company_name  = iv_company_name
+                      iv_address_line1 = iv_address_line1
+                      iv_city          = iv_city
+                      iv_state         = iv_state
+                      iv_zip_code      = iv_zip_code ) ).
   ENDMETHOD.
 
 
   METHOD lookup_duns.
-    rv_json = post(
-      iv_path = '/api/duns-number-lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'dunsNumber' value = iv_duns_number )
-      ) ) ).
+    rv_json = post( iv_path = '/api/duns-number-lookup'
+                    iv_body = build_duns_body( iv_duns_number = iv_duns_number ) ).
   ENDMETHOD.
 
 
   METHOD lookup_hierarchy.
-    rv_json = post(
-      iv_path = '/api/company/hierarchy/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'identifier'     value = iv_identifier )
-        ( name = 'identifierType' value = iv_identifier_type )
-        ( name = 'country'        value = iv_country )
-        ( name = 'options'        value = iv_options )
-      ) ) ).
+    rv_json = post( iv_path = '/api/company/hierarchy/lookup'
+                    iv_body = build_hierarchy_body(
+                      iv_identifier      = iv_identifier
+                      iv_identifier_type = iv_identifier_type
+                      iv_country         = iv_country
+                      iv_options         = iv_options ) ).
   ENDMETHOD.
 
 
   " ── Industry Specific ───────────────────────────────────────────────────
 
   METHOD validate_npi.
-    rv_json = post(
-      iv_path = '/api/nationalprovideridentifier/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'npi'              value = iv_npi )
-        ( name = 'organizationName' value = iv_organization_name )
-        ( name = 'lastName'         value = iv_last_name )
-        ( name = 'firstName'        value = iv_first_name )
-        ( name = 'middleName'       value = iv_middle_name )
-      ) ) ).
+    rv_json = post( iv_path = '/api/nationalprovideridentifier/validate'
+                    iv_body = build_npi_body(
+                      iv_npi               = iv_npi
+                      iv_organization_name = iv_organization_name
+                      iv_last_name         = iv_last_name
+                      iv_first_name        = iv_first_name
+                      iv_middle_name       = iv_middle_name ) ).
   ENDMETHOD.
 
 
   METHOD validate_medpass.
-    rv_json = post(
-      iv_path = '/api/medpass/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'id'                 value = iv_id )
-        ( name = 'businessEntityType' value = iv_business_entity_type )
-        ( name = 'companyName'        value = iv_company_name )
-        ( name = 'taxId'              value = iv_tax_id )
-        ( name = 'country'            value = iv_country )
-        ( name = 'state'              value = iv_state )
-        ( name = 'city'               value = iv_city )
-        ( name = 'postalCode'         value = iv_postal_code )
-        ( name = 'addressLine1'       value = iv_address_line1 )
-        ( name = 'addressLine2'       value = iv_address_line2 )
-      ) ) ).
+    rv_json = post( iv_path = '/api/medpass/validate'
+                    iv_body = build_medpass_body(
+                      iv_id                   = iv_id
+                      iv_business_entity_type = iv_business_entity_type
+                      iv_company_name         = iv_company_name
+                      iv_tax_id               = iv_tax_id
+                      iv_country              = iv_country
+                      iv_state                = iv_state
+                      iv_city                 = iv_city
+                      iv_postal_code          = iv_postal_code
+                      iv_address_line1        = iv_address_line1
+                      iv_address_line2        = iv_address_line2 ) ).
   ENDMETHOD.
 
 
   METHOD lookup_dot_carrier.
-    rv_json = post(
-      iv_path = '/api/dot/fmcsa/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'dotNumber'  value = iv_dot_number )
-        ( name = 'entityName' value = iv_entity_name )
-      ) ) ).
+    rv_json = post( iv_path = '/api/dot/fmcsa/lookup'
+                    iv_body = build_dot_carrier_body(
+                      iv_dot_number  = iv_dot_number
+                      iv_entity_name = iv_entity_name ) ).
   ENDMETHOD.
 
 
   METHOD validate_india_identity.
-    rv_json = post(
-      iv_path = '/api/inidentity/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'identityNumber'     value = iv_identity_number )
-        ( name = 'identityNumberType' value = iv_identity_number_type )
-        ( name = 'entityName'         value = iv_entity_name )
-        ( name = 'dob'                value = iv_dob )
-      ) ) ).
+    rv_json = post( iv_path = '/api/inidentity/validate'
+                    iv_body = build_in_identity_body(
+                      iv_identity_number      = iv_identity_number
+                      iv_identity_number_type = iv_identity_number_type
+                      iv_entity_name          = iv_entity_name
+                      iv_dob                  = iv_dob ) ).
   ENDMETHOD.
 
 
   " ── Certification ───────────────────────────────────────────────────────
 
   METHOD validate_certification.
-    rv_json = post(
-      iv_path = '/api/certification/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'companyName'         value = iv_company_name )
-        ( name = 'country'             value = iv_country )
-        ( name = 'city'                value = iv_city )
-        ( name = 'state'               value = iv_state )
-        ( name = 'zipCode'             value = iv_zip_code )
-        ( name = 'addressLine1'        value = iv_address_line1 )
-        ( name = 'addressLine2'        value = iv_address_line2 )
-        ( name = 'identityType'        value = iv_identity_type )
-        ( name = 'certificationType'   value = iv_certification_type )
-        ( name = 'certificationGroup'  value = iv_certification_group )
-        ( name = 'certificationNumber' value = iv_certification_number )
-      ) ) ).
+    rv_json = post( iv_path = '/api/certification/validate'
+                    iv_body = build_certification_body(
+                      iv_company_name         = iv_company_name
+                      iv_country              = iv_country
+                      iv_city                 = iv_city
+                      iv_state                = iv_state
+                      iv_zip_code             = iv_zip_code
+                      iv_address_line1        = iv_address_line1
+                      iv_address_line2        = iv_address_line2
+                      iv_identity_type        = iv_identity_type
+                      iv_certification_type   = iv_certification_type
+                      iv_certification_group  = iv_certification_group
+                      iv_certification_number = iv_certification_number ) ).
   ENDMETHOD.
 
 
   METHOD lookup_certification.
-    rv_json = post(
-      iv_path = '/api/certification/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'companyName'         value = iv_company_name )
-        ( name = 'country'             value = iv_country )
-        ( name = 'city'                value = iv_city )
-        ( name = 'state'               value = iv_state )
-        ( name = 'zipCode'             value = iv_zip_code )
-        ( name = 'addressLine1'        value = iv_address_line1 )
-        ( name = 'addressLine2'        value = iv_address_line2 )
-        ( name = 'identityType'        value = iv_identity_type )
-        ( name = 'certificationType'   value = iv_certification_type )
-        ( name = 'certificationGroup'  value = iv_certification_group )
-        ( name = 'certificationNumber' value = iv_certification_number )
-      ) ) ).
+    rv_json = post( iv_path = '/api/certification/lookup'
+                    iv_body = build_certification_body(
+                      iv_company_name         = iv_company_name
+                      iv_country              = iv_country
+                      iv_city                 = iv_city
+                      iv_state                = iv_state
+                      iv_zip_code             = iv_zip_code
+                      iv_address_line1        = iv_address_line1
+                      iv_address_line2        = iv_address_line2
+                      iv_identity_type        = iv_identity_type
+                      iv_certification_type   = iv_certification_type
+                      iv_certification_group  = iv_certification_group
+                      iv_certification_number = iv_certification_number ) ).
   ENDMETHOD.
 
 
   " ── Business Classification ─────────────────────────────────────────────
 
   METHOD lookup_business_classification.
-    rv_json = post(
-      iv_path = '/api/businessclassification/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'companyName' value = iv_company_name )
-        ( name = 'city'        value = iv_city )
-        ( name = 'state'       value = iv_state )
-        ( name = 'country'     value = iv_country )
-        ( name = 'address1'    value = iv_address1 )
-        ( name = 'address2'    value = iv_address2 )
-        ( name = 'phone'       value = iv_phone )
-        ( name = 'postalCode'  value = iv_postal_code )
-      ) ) ).
+    rv_json = post( iv_path = '/api/businessclassification/lookup'
+                    iv_body = build_busclass_body(
+                      iv_company_name = iv_company_name
+                      iv_city         = iv_city
+                      iv_state        = iv_state
+                      iv_country      = iv_country
+                      iv_address1     = iv_address1
+                      iv_address2     = iv_address2
+                      iv_phone        = iv_phone
+                      iv_postal_code  = iv_postal_code ) ).
   ENDMETHOD.
 
 
   " ── Financial Operations ────────────────────────────────────────────────
 
   METHOD analyze_payment_terms.
-    rv_json = post(
-      iv_path = '/api/paymentterms/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'currentPayTerm' value = iv_current_pay_term type = gc_type_number )
-        ( name = 'annualSpend'    value = iv_annual_spend     type = gc_type_number )
-        ( name = 'avgDaysPay'     value = iv_avg_days_pay     type = gc_type_number )
-        ( name = 'savingsRate'    value = iv_savings_rate      type = gc_type_number )
-        ( name = 'threshold'      value = iv_threshold         type = gc_type_number )
-        ( name = 'vendorName'     value = iv_vendor_name )
-        ( name = 'country'        value = iv_country )
-      ) ) ).
+    rv_json = post( iv_path = '/api/paymentterms/validate'
+                    iv_body = build_payment_terms_body(
+                      iv_current_pay_term = iv_current_pay_term
+                      iv_annual_spend     = iv_annual_spend
+                      iv_avg_days_pay     = iv_avg_days_pay
+                      iv_savings_rate     = iv_savings_rate
+                      iv_threshold        = iv_threshold
+                      iv_vendor_name      = iv_vendor_name
+                      iv_country          = iv_country ) ).
   ENDMETHOD.
 
 
@@ -1552,32 +2029,24 @@ CLASS zcl_qubiton IMPLEMENTATION.
   " ── Supplier Profile (SAP Ariba) ────────────────────────────────────────
 
   METHOD lookup_ariba_supplier.
-    rv_json = post(
-      iv_path = '/api/aribasupplierprofile/lookup'
-      iv_body = build_json( VALUE #(
-        ( name = 'anid' value = iv_anid )
-      ) ) ).
+    rv_json = post( iv_path = '/api/aribasupplierprofile/lookup'
+                    iv_body = build_ariba_body( iv_anid = iv_anid ) ).
   ENDMETHOD.
 
 
   METHOD validate_ariba_supplier.
-    rv_json = post(
-      iv_path = '/api/aribasupplierprofile/validate'
-      iv_body = build_json( VALUE #(
-        ( name = 'anid' value = iv_anid )
-      ) ) ).
+    rv_json = post( iv_path = '/api/aribasupplierprofile/validate'
+                    iv_body = build_ariba_body( iv_anid = iv_anid ) ).
   ENDMETHOD.
 
 
   " ── Gender Identification ───────────────────────────────────────────────
 
   METHOD identify_gender.
-    rv_json = post(
-      iv_path = '/api/genderize/identifygender'
-      iv_body = build_json( VALUE #(
-        ( name = 'name'    value = iv_name )
-        ( name = 'country' value = iv_country )
-      ) ) ).
+    rv_json = post( iv_path = '/api/genderize/identifygender'
+                    iv_body = build_gender_body(
+                      iv_name    = iv_name
+                      iv_country = iv_country ) ).
   ENDMETHOD.
 
 
