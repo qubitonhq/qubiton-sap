@@ -194,7 +194,8 @@ This imports all classes, message class, config tables, authorization object, an
 | [Setup & Connectivity](docs/setup.md) | API key, BTP destination, RFC destination (SM59), CPI iFlow |
 | [Configuration](docs/configuration.md) | Constructor params, error modes, handle_result, real-time vs. batch, JSON parsing |
 | [Usage Examples](docs/examples.md) | ABAP code examples for all 42 API methods |
-| [Screen Enhancements](docs/screen-enhancements.md) | BAdI setup, config table (SM30), tax auto-detection, bank field mapping |
+| [Screen Enhancements](docs/screen-enhancements.md) | Master-data BAdIs (XK01/XK02, FK01/FK02, BP), config table (SM30), tax auto-detection, bank field mapping |
+| **[Transaction Validation](docs/transaction-validation.md)** | **Inline + batch validation on transactional documents — PO (ME21N), invoice (MIRO), payment (F-58), payment proposal (F110). SWIE workflow events, BRF+ rule integration, BTE function-module exits. Cloud Public Edition patterns.** |
 | [Authorization & Logging](docs/authorization.md) | ZQUBITON_API auth object, SLG1 application logging |
 | [SAP Certification](docs/sap-certification.md) | ICC readiness, marketplace publishing, object inventory, complete setup steps |
 
@@ -218,6 +219,20 @@ Plus 30+ pre-built integrations for Salesforce, HubSpot, Snowflake, Databricks, 
 Yes — same `ZCL_QUBITON` class, different config. For real-time, use one of the three pre-built BAdIs (`ZCL_QUBITON_BADI_VENDOR`, `..._CUSTOMER`, `..._BP`) which hook into XK01/XK02/FK01/FK02 (and BP) save events and can block the save when validation fails. For batch (mass cleansing reports, BDC, LSMW), instantiate the class with `iv_keep_alive = abap_true` for HTTP connection reuse across thousands of records and `iv_on_invalid = 'S'` for silent mode where the report checks results itself instead of issuing user messages.
 
 See [docs/configuration.md](docs/configuration.md) for the full constructor parameter list.
+
+### Can it run during transactional document entry (PO, invoice, payment)?
+
+Yes — alongside the master-data BAdIs (XK01/XK02, FK01/FK02, BP), the connector now ships transactional BAdIs that fire on PO save (`ME_PROCESS_PO_CUST`), invoice posting (`INVOICE_UPDATE`), and payment release. Both **inline** (real-time block / warn during entry) and **batch** (overnight sweep over open documents) are supported, same `ZCL_QUBITON` class with different config flags.
+
+A **master kill switch** in `ZQUBITON_CONFIG.TXN_VALIDATION_ENABLED` lets admins turn the entire transactional layer on/off in seconds without transports. Per-transaction granularity via `ZQUBITON_SCREEN_CFG`.
+
+The BAdIs work hand-in-hand with three new integration helpers:
+
+- **`ZCL_QUBITON_WORKFLOW`** raises SAP Business Workflow events (SWIE) so a workflow template can route the document to an approver instead of hard-blocking the user
+- **`ZCL_QUBITON_BRFPLUS`** delegates the block / warn / route / silent decision to a customer-maintained BRF+ application — so non-developers can tune policy
+- **`Z_QUBITON_BTE_*`** function-module reference templates for FIBF (BTE) registration where BAdIs aren't available (older ECC, FI events without BAdI coverage)
+
+For S/4HANA Cloud Public Edition, three integration patterns are documented (Integration Suite iFlows, released cloud BAdIs, BTP side-by-side extensions). See [docs/transaction-validation.md](docs/transaction-validation.md) for the full guide.
 
 ### How customizable is the workflow integration?
 
