@@ -294,11 +294,13 @@ What you build:
 
 ### Pattern B — released cloud BAdI (PO save only, currently)
 
-For purchase orders, SAP did release a cloud-extensible BAdI: `BD_MMPUR_FINAL_CHECK_PO` (BAdI definition). The implementation interface is `IF_EX_MMPUR_FINAL_CHECK_PO` — no `BD_` prefix on the interface side; an earlier cut of this doc had `IF_EX_BD_MMPUR_FINAL_CHECK_PO`, which doesn't exist. Customers register implementations via the Fiori app *Custom Fields and Logic*; the method signature uses the modern object-reference style (a PO API object reference plus a messages table), not the classic `IS_HEADER` / `IT_ITEMS` / `CT_MESSAGES` shape from on-prem `IF_EX_ME_PROCESS_PO_CUST` — pull the actual signature from ADT before adapting the reference body.
+For purchase orders, SAP did release a cloud-extensible BAdI: `BD_MMPUR_FINAL_CHECK_PO` (BAdI definition; enhancement spot `ES_MMPUR_PROCESS_PO_CLOUD`). The implementation interface is `IF_EX_MMPUR_FINAL_CHECK_PO` — no `BD_` prefix on the interface side; an earlier cut of this doc had `IF_EX_BD_MMPUR_FINAL_CHECK_PO`, which doesn't exist.
+
+The released `CHECK` method signature uses **flat structure parameters** — `PURCHASEORDER` (IMPORTING flat structure), `PURCHASEORDERITEMS` (IMPORTING table), `MESSAGES` (CHANGING table). It is **not** the on-prem `IF_EX_ME_PROCESS_PO_CUST` shape (`IM_HEADER` object reference + `CH_FAILED` flag) and not the `IS_HEADER` / `IT_ITEMS` / `CT_MESSAGES` shape an earlier draft of this doc claimed. Customers register implementations via the Fiori app *Custom Fields and Logic*, which auto-generates the implementation skeleton with the wave-correct DDIC types (`MMPUR_S_*` / `MMPUR_T_*` namespace); paste the body of our reference `CHECK` method into that generated skeleton. To block the PO save, append a row with `msgty='E'` (or `'A'`) to the `MESSAGES` CHANGING table. See SAP KBA 2893882 + 3558790 for the canonical lookup path on Business Accelerator Hub / ADT.
 
 > **Verification status — read this before adopting**: the released-BAdI catalogue for Public Cloud is not consolidated in one place by SAP, and the exact interface signature varies across cloud release waves (CE 2308 / 2402 / 2502+). The QubitOn team validated the reference template against the public SAP Help portal; we do NOT have continuous-access cloud sandbox validation. Confirm the BAdI exists under your tenant's release in Fiori app *Custom Fields and Logic* before promoting to PRD.
 
-**Reference implementation**: [`docs/templates/cloud/zcl_qubiton_cloud_po_check.clas.abap`](templates/cloud/zcl_qubiton_cloud_po_check.clas.abap) — paste the body of the `CHECK` method into the Fiori-generated skeleton; adapts to cloud constraints (Communication Arrangement, released CDS views, `IF_WEB_HTTP_CLIENT` instead of `CL_HTTP_CLIENT`, append-to-`CT_MESSAGES` instead of `MESSAGE`).
+**Reference implementation**: [`docs/templates/cloud/zcl_qubiton_cloud_po_check.clas.abap`](templates/cloud/zcl_qubiton_cloud_po_check.clas.abap) — paste the body of the `CHECK` method into the Fiori-generated skeleton; adapts to cloud constraints (Communication Arrangement, released CDS views, `IF_WEB_HTTP_CLIENT` instead of `CL_HTTP_CLIENT`, append-to-`MESSAGES` instead of classic `MESSAGE` statements).
 
 What you'd do:
 
@@ -308,7 +310,7 @@ What you'd do:
    - Header: `apikey = <your QubitOn API key>`
 2. Fiori app *Custom Fields and Logic* → BAdIs tab → search `BD_MMPUR_FINAL_CHECK_PO`
 3. Create an implementation; paste the body from the reference template
-4. Activate. On a sanctions hit, the BAdI appends a type-`E` message to `CT_MESSAGES`, which Public Cloud surfaces in the PO Fiori app as a hard error.
+4. Activate. On a sanctions hit, the BAdI appends a type-`E` row to the `MESSAGES` CHANGING table, which Public Cloud surfaces in the PO Fiori app as a hard error.
 
 For invoice and payment, **no released cloud BAdI is currently available**. Use Pattern A (Integration Suite) for those.
 

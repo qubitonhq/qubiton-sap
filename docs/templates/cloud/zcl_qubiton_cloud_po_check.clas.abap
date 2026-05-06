@@ -26,7 +26,7 @@
 "!     use the cloud-released CDS views (e.g. I_Supplier).
 "!   * Cannot raise classic MESSAGE statements with custom message
 "!     classes — must use the released BAPI/Fiori message infrastructure
-"!     by appending to the BAdI's CT_MESSAGES table.
+"!     by appending to the BAdI's MESSAGES (CHANGING) table.
 "!   * Cannot call BAL Application Log directly — use the released
 "!     CL_BALI_LOG_DB_ACCESS interface, or accept that logging happens
 "!     server-side at api.qubiton.com.
@@ -122,22 +122,25 @@ ENDCLASS.
 CLASS zcl_qubiton_cloud_po_check IMPLEMENTATION.
 
   METHOD if_ex_mmpur_final_check_po~check.
-    " IMPORTANT — parameter names in this template body are PLACEHOLDERS.
-    " The actual BAdI signature in your tenant uses object-reference style
-    " (a PO API object reference + a messages table) and the parameter
-    " names are tenant/release-wave specific.  When pasting this body
-    " into the Fiori-generated skeleton, replace:
-    "   `is_header-supplier` → the tenant skeleton's PO-header
-    "                          accessor (often
-    "                          `io_purchase_order->get_supplier( )` or
-    "                          a getter on the released PO API class).
-    "   `ct_messages`        → the tenant skeleton's messages table
-    "                          parameter name (varies by wave —
-    "                          confirmed candidates: `et_messages`,
-    "                          `ct_messages`, `messages`).
-    " Setting message type = 'E' on a row in the messages table is
-    " how Public Cloud blocks the PO save — there is NO `ch_failed`
-    " flag in the cloud variant.
+    " The cloud BAdI passes a flat `PURCHASEORDER` structure
+    " (IMPORTING), a `PURCHASEORDERITEMS` table (IMPORTING — note
+    " plural, no `IT_` prefix), and a CHANGING `MESSAGES` table.
+    "
+    " This is NOT the on-prem `IF_EX_ME_PROCESS_PO_CUST` shape
+    " (`IM_HEADER` object reference + `CH_FAILED` flag) — those
+    " mechanics don't exist on the cloud BAdI.  Setting `msgty='E'`
+    " (or `'A'`) on a row appended to `MESSAGES` is how Public Cloud
+    " blocks the PO save.
+    "
+    " The exact DDIC types for `PURCHASEORDER` /
+    " `PURCHASEORDERITEMS` / `MESSAGES` are tenant + release-wave
+    " specific (`MMPUR_S_*` / `MMPUR_T_*` namespace).  Customers
+    " regenerate the skeleton in their tenant via Fiori app
+    " "Custom Fields and Logic" → BAdIs tab → BD_MMPUR_FINAL_CHECK_PO
+    " → Create — that auto-generates the implementation class with
+    " the wave-correct types, then they paste the body below into
+    " the generated CHECK method.  See SAP KBA 2893882 + 3558790
+    " for the canonical lookup path.
 
     DATA lv_country TYPE c LENGTH 3.
     DATA lv_name    TYPE c LENGTH 80.
@@ -157,15 +160,18 @@ CLASS zcl_qubiton_cloud_po_check IMPLEMENTATION.
     " app and only activate after the Communication Arrangement is in
     " place.
 
-    " is_header is the BAdI's PO header context structure. The exact
-    " field name for the supplier in your tenant may be Supplier,
-    " SupplierID, or LIFNR depending on the released version.
-    IF is_header-supplier IS INITIAL.
+    " `purchaseorder-supplier` reads the supplier field off the
+    " flat header structure.  Field name is `Supplier` on the cloud-
+    " released structure (matches the API_PURCHASEORDER_PROCESS_SRV
+    " entity); confirm via the Fiori-generated skeleton in your
+    " tenant if your release wave exposes it under a different
+    " name (e.g. `SupplierID`).
+    IF purchaseorder-supplier IS INITIAL.
       RETURN.   " stock transfer / no vendor — nothing to validate
     ENDIF.
 
     read_supplier_facts(
-      EXPORTING iv_supplier = is_header-supplier
+      EXPORTING iv_supplier = purchaseorder-supplier
       IMPORTING
         ev_country = lv_country
         ev_name    = lv_name ).
@@ -179,15 +185,26 @@ CLASS zcl_qubiton_cloud_po_check IMPLEMENTATION.
       iv_name    = lv_name ).
 
     IF lv_blocked = abap_true.
-      " Block the save by appending a type-E message. Public Cloud
-      " surfaces this in the PO Fiori app as a hard error.
+      " Block the save by appending a type-E message to the CHANGING
+      " MESSAGES table.  Public Cloud surfaces this in the PO Fiori
+      " app as a hard error.  No `ch_failed` flag, no exception —
+      " just the message row.
+      "
+      " Field names below (`msgty` / `msgid` / `msgno` / `msgv1` /
+      " `msgv2`) match the SYMSG-style line type used in SAP-published
+      " examples for this BAdI (community.sap.com .../ba-p/13537724
+      " and SAP KBA 2893882).  If your release wave's MMPUR_*
+      " message-table type uses BAPIRET2-style names (`type` / `id` /
+      " `number` / `message_v1` / `message_v2`), rename the fields in
+      " this VALUE constructor to match — the ADT skeleton in your
+      " tenant is the source of truth.
       APPEND VALUE #(
         msgty = 'E'
         msgid = 'ZQUBITON_CLOUD'
         msgno = '001'
-        msgv1 = is_header-supplier
+        msgv1 = purchaseorder-supplier
         msgv2 = lv_country
-      ) TO ct_messages.
+      ) TO messages.
     ENDIF.
   ENDMETHOD.
 
