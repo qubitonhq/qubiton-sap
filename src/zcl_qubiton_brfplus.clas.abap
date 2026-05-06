@@ -131,15 +131,26 @@ CLASS zcl_qubiton_brfplus IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " ── Customer extension point ──────────────────────────────────────
+    " BRFPLUS_ENABLED='X' AND BRFPLUS_FUNCTION_ID is set, but no FDT
+    " call is wired in this method body yet. The connector ships the
+    " call-site shape; customers complete the FDT_FUNCTION_PROCESS
+    " plumbing per their BRF+ release (the API signature varies across
+    " 7.40 / 7.50 / 7.5x / S/4HANA Cloud).
+    "
+    " Surface a warning so this isn't a silent no-op when an admin
+    " has gone to the trouble of configuring BRFPLUS_ENABLED=X — they
+    " should know the helper isn't actually evaluating their rules
+    " until the plumbing is filled in.
+    MESSAGE w003(zcl_qubiton_msg) WITH
+      'BRF+ helper called but FDT_FUNCTION_PROCESS plumbing not yet wired ' &&
+      '(see docs/transaction-validation.md). Falling back to ZQUBITON_SCREEN_CFG policy.'.
+
     " Wrap the BRF+ call in a TRY block — a misconfigured BRF+ function
     " (deleted, deactivated, schema mismatch) should not crash the BAdI.
     " On any failure we fall back to the legacy ZQUBITON_SCREEN_CFG path.
     TRY.
-        " Pseudo-code for FDT_FUNCTION_PROCESS — exact API signature
-        " varies by BRF+ release. Customers complete this method per
-        " their landscape; the helper keeps the call site uniform.
-        "
-        " Recommended pattern:
+        " Recommended pattern (uncomment + adapt per your BRF+ release):
         "
         "   DATA(lo_function) = cl_fdt_factory=>get_instance( )->get_function(
         "       iv_id = lv_function_id ).
@@ -149,10 +160,6 @@ CLASS zcl_qubiton_brfplus IMPLEMENTATION.
         "   lo_function->process( EXPORTING io_context = lo_context
         "                         IMPORTING eo_result = DATA(lo_result) ).
         "   lo_result->get_value( IMPORTING ea_value = rv_verdict ).
-        "
-        " Until the customer fills in the FDT_FUNCTION_PROCESS plumbing,
-        " this method returns SPACE and the BAdI falls back to legacy
-        " policy.
         rv_verdict = space.
 
       CATCH cx_root INTO DATA(lx).

@@ -1,5 +1,27 @@
 # Setup & Connectivity
 
+## Optional: enable transactional validation (PO / invoice / payment BAdIs)
+
+If you plan to use the transactional-validation BAdIs (added in v1.0; see [Transaction Validation](transaction-validation.md)), seed the config rows with the install report:
+
+```text
+SE38 → Z_QUBITON_INSTALL_TXN → Execute (F8)
+
+  ☑ p_dryrun  (preview the rows it would insert; uncheck to apply)
+  ☐ p_force   (overwrite existing rows; leave unchecked to be idempotent)
+```
+
+The report INSERTs four `ZQUBITON_CONFIG` rows, all initialised to **disabled**:
+
+| Config key | Default | Purpose |
+|---|---|---|
+| `TXN_VALIDATION_ENABLED` | `''` | Master kill switch for every transactional BAdI |
+| `WORKFLOW_ENABLED` | `''` | SWIE workflow event raising via `ZCL_QUBITON_WORKFLOW` |
+| `BRFPLUS_ENABLED` | `''` | BRF+ rule integration via `ZCL_QUBITON_BRFPLUS` |
+| `BRFPLUS_FUNCTION_ID` | `''` | UUID of the customer's BRF+ function |
+
+After the seed, an admin maintains them via SM30 → table `ZQUBITON_CONFIG`. Flip `TXN_VALIDATION_ENABLED` to `'X'` to activate the BAdIs; `WORKFLOW_ENABLED` / `BRFPLUS_ENABLED` to `'X'` to enable those helpers. Re-running the install report is safe — it skips existing rows unless `p_force` is checked.
+
 ## Getting an API Key
 
 1. Sign up for a free account at [www.qubiton.com](https://www.qubiton.com/auth/register)

@@ -423,7 +423,7 @@ Two reference processes are shipped as templates:
 
 What the customer wires up:
 
-1. SE80 → create function group `ZQUBITON_BTE`, copy templates from `src/z_qubiton_bte.fugr.abap`
+1. SE80 → create function group `ZQUBITON_BTE`, copy templates from [`docs/templates/bte-1820-1880.abap`](templates/bte-1820-1880.abap) into your function-group includes (the file is a **reference template**, not an abapGit-deployable function group — abapGit needs separate `.fugr.xml` + per-FM `.abap` files which customers maintain in their own namespace)
 2. Transaction **FIBF** → Settings → P/S Modules → Of an SAP Application:
    - Process `1820`, Application `FI`, Function module `Z_QUBITON_BTE_1820`
    - Process `1880`, Application `FI`, Function module `Z_QUBITON_BTE_1880`
