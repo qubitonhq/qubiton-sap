@@ -296,15 +296,19 @@ What you build:
 
 For purchase orders, SAP did release a cloud-extensible BAdI: `BD_MMPUR_FINAL_CHECK_PO` (interface `IF_EX_BD_MMPUR_FINAL_CHECK_PO`). Customers register implementations via the Fiori app *Custom Fields and Logic*.
 
-> **Verification status — read this before adopting**: the released-BAdI catalogue for Public Cloud is not consolidated in one place by SAP, and the exact interface signature varies across cloud release waves (CE 2308 / 2402 / 2502+). The QubitOn team has not validated this BAdI against a specific cloud system — adopt with care, confirm the interface in your tenant's Fiori app *Custom Fields and Logic*, and test in a sandbox release before promoting. We have an open work item to ship a verified cloud-tested reference; track it in the [SAP Certification doc](sap-certification.md).
+> **Verification status — read this before adopting**: the released-BAdI catalogue for Public Cloud is not consolidated in one place by SAP, and the exact interface signature varies across cloud release waves (CE 2308 / 2402 / 2502+). The QubitOn team validated the reference template against the public SAP Help portal; we do NOT have continuous-access cloud sandbox validation. Confirm the BAdI exists under your tenant's release in Fiori app *Custom Fields and Logic* before promoting to PRD.
 
-What you'd do (pattern, not verified code):
+**Reference implementation**: [`docs/templates/cloud/zcl_qubiton_cloud_po_check.clas.abap`](templates/cloud/zcl_qubiton_cloud_po_check.clas.abap) — paste the body of the `CHECK` method into the Fiori-generated skeleton; adapts to cloud constraints (Communication Arrangement, released CDS views, `IF_WEB_HTTP_CLIENT` instead of `CL_HTTP_CLIENT`, append-to-`CT_MESSAGES` instead of `MESSAGE`).
 
-1. In Fiori app *Custom Fields and Logic* → BAdIs tab → search `BD_MMPUR_FINAL_CHECK_PO`
-2. Create an implementation, paste the cloud-restricted ABAP
-3. The cloud implementation cannot use `cl_http_client` directly; instead it consumes a **Communication Arrangement** that proxies to the QubitOn API
-4. Communication Arrangement uses Communication Scenario `SAP_COM_0276` (HTTP Outbound) pointing at `https://api.qubiton.com`
-5. The cloud BAdI calls the proxy; on a sanctions hit raises a message that S/4 Cloud surfaces in the PO Fiori app
+What you'd do:
+
+1. Fiori app *Communication Arrangements* → Create
+   - Scenario: `SAP_COM_0276` (HTTP Outbound)
+   - URL: `https://api.qubiton.com`
+   - Header: `apikey = <your QubitOn API key>`
+2. Fiori app *Custom Fields and Logic* → BAdIs tab → search `BD_MMPUR_FINAL_CHECK_PO`
+3. Create an implementation; paste the body from the reference template
+4. Activate. On a sanctions hit, the BAdI appends a type-`E` message to `CT_MESSAGES`, which Public Cloud surfaces in the PO Fiori app as a hard error.
 
 For invoice and payment, **no released cloud BAdI is currently available**. Use Pattern A (Integration Suite) for those.
 
@@ -362,10 +366,10 @@ What the customer wires up:
 
 1. **Object type** — SE11/SWO1 → activate `ZQUBITON_DOC` (or `_PO`/`_INV`/`_PAY` per document)
 2. **Event linkage** — SWE2 → register `ZQUBITON_PO/RISK_DETECTED` against your workflow template (`WS9000xxxx`)
-3. **Workflow template** — PFTC → build a template that:
+3. **Workflow template** — PFTC → build a template per the spec at [`docs/templates/workflow/ws_qubiton_risk_review.md`](templates/workflow/ws_qubiton_risk_review.md):
    - Reads the validation result from the event container
-   - Branches on severity (sanctions = stop, cyber = approve, ubo = review)
-   - Creates a decision task assigned to the right org unit
+   - Branches on severity (HIGH / MEDIUM / LOW)
+   - Creates a User Decision task assigned to the right org unit
 4. **On / off** — `ZQUBITON_CONFIG.WORKFLOW_ENABLED = 'X'`. Disabled = no event raised, BAdI surfaces the warning to the user inline instead.
 
 The reference helper raises events via `SAP_WAPI_CREATE_EVENT` with the validation outcome packed into the event container as named parameters (`MESSAGE`, `IS_VALID`, `EVENT_NAME`).
@@ -445,15 +449,15 @@ Combine freely: BAdI → calls BRF+ for the verdict → on "route" calls SWIE to
 
 ## Cloud roadmap for this connector
 
-We're tracking three workstreams for Cloud Public Edition:
-
-| Workstream | Status | Owner |
+| Workstream | Status | Reference |
 |---|---|---|
-| Reference iFlow templates for Pattern A (PO, invoice, payment) | planned | QubitOn |
-| Verified `BD_MMPUR_FINAL_CHECK_PO` reference implementation (Pattern B) | open work item | QubitOn (need cloud sandbox access) |
+| Reference iFlow XML for Pattern A (PO sanctions check) | shipped | [`docs/templates/iflow/qubiton_po_sanctions.iflw`](templates/iflow/qubiton_po_sanctions.iflw) + [README](templates/iflow/README.md) |
+| Reference iFlows for invoice / payment (Pattern A) | derive from PO iFlow | [README](templates/iflow/README.md) — adapting section |
+| `BD_MMPUR_FINAL_CHECK_PO` reference implementation (Pattern B) | shipped | [`docs/templates/cloud/zcl_qubiton_cloud_po_check.clas.abap`](templates/cloud/zcl_qubiton_cloud_po_check.clas.abap) |
+| Production workflow template spec (Pattern A/B post-block routing) | shipped | [`docs/templates/workflow/ws_qubiton_risk_review.md`](templates/workflow/ws_qubiton_risk_review.md) |
 | BTP side-by-side reference app (Pattern C) | not started | — |
 
-Customers on Public Cloud who need this today should start with Pattern A (Integration Suite). The reference iFlow XML is in the QubitOn knowledge base — request it via support.
+Customers on Public Cloud should start with Pattern A (Integration Suite — see the iFlow link above) for invoice and payment, and use Pattern B in addition for PO save when synchronous block at the dialog is required.
 
 ## Local validation (no SAP system needed)
 
