@@ -49,9 +49,32 @@ run_lint_signal() {
   # objects abaplint genuinely can't see (BAdI interfaces, DDIC tables,
   # SAP function modules, deep standard classes). What's left is the
   # signal: real bugs in our code.
+  #
+  # abaplint exits 1 whenever ANY issue is reported — including the noise
+  # we filter out. So we capture its output, run our filter, and exit
+  # based on whether any real `[E]` lines survive.
   cd "$REPO_ROOT"
-  npx --yes @abaplint/cli@latest -f standard 2>&1 | grep -v -E \
-    'Method definition .*not found|Database table or view .*not found|"(im_|ch_|ex_|ev_|ec_|in_|et_|it_|is_|iv_|i_|e_)[a-z_0-9]+" not found|Method ".*" not found, methodCallChain|Class cl_.*not found|Class cx_.*not found|Unknown class .*|Super class ".*" not found|Not an object reference|Statement does not exist in ABAP|Unknown object type, currently not supported in abaplint|Method importing parameter "(TIMEOUT|MESSAGE)" does not exist|"is_but000" not found|"is_bp_data" not found|"iv_bpkind" not found'
+  local raw_out
+  set +e   # capture abaplint exit code without aborting
+  raw_out=$(npx --yes @abaplint/cli@latest -f standard 2>&1)
+  set -e
+
+  local filtered
+  filtered=$(echo "$raw_out" | grep -v -E \
+    'Method definition .*not found|Database table or view .*not found|"(im_|ch_|ex_|ev_|ec_|in_|et_|it_|is_|iv_|i_|e_)[a-z_0-9]+" not found|Method ".*" not found, methodCallChain|Class cl_.*not found|Class cx_.*not found|Unknown class .*|Super class ".*" not found|Not an object reference|Statement does not exist in ABAP|Unknown object type, currently not supported in abaplint|Method importing parameter "(TIMEOUT|MESSAGE)" does not exist|"is_but000" not found|"is_bp_data" not found|"iv_bpkind" not found' || true)
+
+  echo "$filtered"
+
+  # Real errors look like `src/...[E]`. If any survive the filter, fail.
+  if echo "$filtered" | grep -qE '^src/.*\[E\]'; then
+    echo ""
+    echo "❌ abaplint surfaced real (non-noise) issues. See output above."
+    return 1
+  fi
+
+  echo ""
+  echo "✓ abaplint clean — all reported issues are filtered SAP-stdlib noise."
+  return 0
 }
 
 case "${1:-lint}" in

@@ -16,18 +16,5 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Run abaplint with SAP stdlib stubs
+      - name: Run abaplint with SAP stdlib stubs (signal-filtered)
         run: ./scripts/lint.sh --signal
-
-      - name: Strict gate — fail on any non-noise error
-        run: |
-          # Run the signal-filtered lint and fail the job if any actual
-          # error lines are emitted (the trailing summary line is the
-          # only acceptable line of output).
-          out=$(./scripts/lint.sh --signal 2>&1)
-          if echo "$out" | grep -E '^src/.*\[E\]' | head -1 | grep -q '\[E\]'; then
-            echo "❌ abaplint surfaced real issues:"
-            echo "$out"
-            exit 1
-          fi
-          echo "✓ abaplint clean (all errors are SAP-stdlib noise filtered out)"
