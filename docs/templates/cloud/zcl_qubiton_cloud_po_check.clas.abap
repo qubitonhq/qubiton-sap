@@ -1,8 +1,10 @@
 "! <p class="shorttext synchronized">QubitOn Cloud BAdI: PO Final Check (Pattern B)</p>
 "!
 "! Reference implementation of the released cloud BAdI
-"! BD_MMPUR_FINAL_CHECK_PO (interface IF_EX_BD_MMPUR_FINAL_CHECK_PO)
-"! for SAP S/4HANA Cloud Public Edition. This is the cloud-tier equivalent
+"! BD_MMPUR_FINAL_CHECK_PO (BAdI definition; the implementation
+"! interface is IF_EX_MMPUR_FINAL_CHECK_PO — no `BD_` prefix on the
+"! interface side) for SAP S/4HANA Cloud Public Edition. This is the
+"! cloud-tier equivalent
 "! of zcl_qubiton_badi_po (which targets on-prem / S/4HANA Private Cloud).
 "!
 "! ── Why this file lives under docs/templates/cloud/ and not src/ ──────
@@ -33,10 +35,10 @@
 "! The released-BAdI catalogue for Public Cloud is not consolidated in
 "! one place by SAP. The exact interface signature for
 "! BD_MMPUR_FINAL_CHECK_PO has varied across cloud release waves
-"! (CE 2308 / 2402 / 2502+). The QubitOn team validated this template
-"! against the public SAP Help portal documentation as of 2026-05; we
-"! do NOT have continuous-access cloud sandbox validation. Customers
-"! adopting this template MUST:
+"! (CE 2308 / 2402 / 2502+). This template is INFORMED BY (not
+"! validated against) the public SAP Help portal as of 2026-05; we
+"! do NOT have cloud sandbox access to verify it end-to-end.
+"! Customers adopting this template MUST:
 "!   1. Confirm the BAdI exists under their tenant's release in Fiori
 "!      app "Custom Fields and Logic" → BAdIs tab.
 "!   2. Confirm the parameter names + types match what their
@@ -74,20 +76,27 @@ CLASS zcl_qubiton_cloud_po_check DEFINITION
 
   PUBLIC SECTION.
 
-    " The actual interface name in your tenant may be the cloud-released
-    " variant (often prefixed BADI_BD_ or starting BD_). The Fiori app
-    " "Custom Fields and Logic" generates the correct skeleton — copy
-    " THIS body into THAT generated class.
-    INTERFACES if_ex_bd_mmpur_final_check_po.
+    " The released-BAdI catalogue lists the implementation INTERFACE
+    " as `IF_EX_MMPUR_FINAL_CHECK_PO` (no `BD_` prefix — `BD_` is on
+    " the BAdI DEFINITION name, not on the implementation interface).
+    " A prior cut of this template referenced `IF_EX_BD_MMPUR_...`
+    " — that interface does not exist and would not activate.
+    " The Fiori app "Custom Fields and Logic" generates the correct
+    " skeleton — copy THIS body into THAT generated class and remove
+    " the placeholder INTERFACES line if your tenant's skeleton
+    " already declares it.
+    INTERFACES if_ex_mmpur_final_check_po.
 
   PRIVATE SECTION.
 
     " Communication Arrangement name created in step 1 above. Customer
-    " edits this if they used a different name.
-    CONSTANTS gc_comm_scenario TYPE if_a4c_cp_communication=>ty_scenario_id
-                VALUE 'SAP_COM_0276'.
+    " edits this if they used a different name.  Typed STRING because
+    " the older if_a4c_cp_communication=>ty_scenario_id alias was
+    " removed in newer cloud release waves; STRING is universally
+    " accepted by cl_http_destination_provider.
+    CONSTANTS gc_comm_scenario TYPE string VALUE 'SAP_COM_0276'.
 
-    "! Resolve the supplier's country + tax ID from the cloud-released
+    "! Resolve the supplier's country + name from the cloud-released
     "! supplier CDS view I_Supplier. On-prem code reads LFA1 directly;
     "! cloud code MUST go through I_Supplier (or a custom CDS exposure).
     METHODS read_supplier_facts
@@ -95,7 +104,6 @@ CLASS zcl_qubiton_cloud_po_check DEFINITION
         iv_supplier  TYPE c LENGTH 10
       EXPORTING
         ev_country   TYPE c LENGTH 3
-        ev_tax_ref   TYPE c LENGTH 30
         ev_name      TYPE c LENGTH 80.
 
     "! Make the HTTPS call to api.qubiton.com via the configured
@@ -113,25 +121,41 @@ ENDCLASS.
 
 CLASS zcl_qubiton_cloud_po_check IMPLEMENTATION.
 
-  METHOD if_ex_bd_mmpur_final_check_po~check.
-    " The cloud BAdI passes a PO header context (IS_HEADER), the line
-    " items (IT_ITEMS), and an OUTPUT message table (CT_MESSAGES) we
-    " append to. Setting message type = 'E' on a row in CT_MESSAGES is
-    " how Public Cloud blocks the PO save — there is NO ch_failed flag
-    " in the cloud variant.
+  METHOD if_ex_mmpur_final_check_po~check.
+    " IMPORTANT — parameter names in this template body are PLACEHOLDERS.
+    " The actual BAdI signature in your tenant uses object-reference style
+    " (a PO API object reference + a messages table) and the parameter
+    " names are tenant/release-wave specific.  When pasting this body
+    " into the Fiori-generated skeleton, replace:
+    "   `is_header-supplier` → the tenant skeleton's PO-header
+    "                          accessor (often
+    "                          `io_purchase_order->get_supplier( )` or
+    "                          a getter on the released PO API class).
+    "   `ct_messages`        → the tenant skeleton's messages table
+    "                          parameter name (varies by wave —
+    "                          confirmed candidates: `et_messages`,
+    "                          `ct_messages`, `messages`).
+    " Setting message type = 'E' on a row in the messages table is
+    " how Public Cloud blocks the PO save — there is NO `ch_failed`
+    " flag in the cloud variant.
 
     DATA lv_country TYPE c LENGTH 3.
-    DATA lv_tax_ref TYPE c LENGTH 30.
     DATA lv_name    TYPE c LENGTH 80.
     DATA lv_blocked TYPE abap_bool.
 
-    " Master kill switch — on-prem reads ZQUBITON_CONFIG; cloud reads
-    " a Custom Business Object or a tenant-scoped variable. Replace
-    " this constant with whatever your tenant uses.
-    CONSTANTS lc_enabled TYPE abap_bool VALUE abap_true.
-    IF lc_enabled <> abap_true.
-      RETURN.
-    ENDIF.
+    " Master kill switch (cloud equivalent of ZQUBITON_CONFIG.TXN_VALIDATION_ENABLED):
+    " Public Cloud has no per-tenant key-value table.  Customer wires
+    " this to whatever their tenant uses (a Custom Business Object,
+    " a Maintenance Object, or a tenant variable read via the
+    " released SAP_API_SETTING service).  The simplest version is
+    " a hardcoded constant edited at activation time and re-deployed
+    " through the Fiori "Custom Fields and Logic" flow.
+    " Example with a Custom Business Object lookup is in:
+    "   docs/transaction-validation.md → "Cloud kill switch options"
+    " For now, leaving this template unconditional — fail-safe is to
+    " ship it with the BAdI implementation DEACTIVATED in the Fiori
+    " app and only activate after the Communication Arrangement is in
+    " place.
 
     " is_header is the BAdI's PO header context structure. The exact
     " field name for the supplier in your tenant may be Supplier,
@@ -144,7 +168,6 @@ CLASS zcl_qubiton_cloud_po_check IMPLEMENTATION.
       EXPORTING iv_supplier = is_header-supplier
       IMPORTING
         ev_country = lv_country
-        ev_tax_ref = lv_tax_ref
         ev_name    = lv_name ).
 
     IF lv_name IS INITIAL.
@@ -170,15 +193,68 @@ CLASS zcl_qubiton_cloud_po_check IMPLEMENTATION.
 
 
   METHOD read_supplier_facts.
-    " Cloud-released CDS view for supplier master. The view's exact
-    " field names vary by release wave — confirm in your tenant.
-    SELECT SINGLE
-        Country,
-        TaxJurisdiction,
-        SupplierName
-      FROM i_supplier
+    " Cloud-released CDS path for supplier name + country.  Per SAP
+    " KBA 3536295 ("Retrieving Multiple Addresses of Business Partners
+    " via CDS View") and KBA 3649550, the canonical released path is:
+    "
+    "   I_Supplier (Supplier → BusinessPartner)
+    "      → I_BusinessPartner (BusinessPartner → AddressID, the
+    "                            standard "default" address pointer)
+    "      → I_BUSPARTADDRESS  (BusinessPartner+AddressID → AddressID
+    "                            into the Address master)
+    "      → I_Address_2       (AddressID → Country, Region, etc.)
+    "
+    " I_Supplier itself does NOT expose a Country field, and the view
+    " name `I_SupplierAddress` is NOT in the released CDS catalog —
+    " an earlier draft of this method used it and would not activate.
+    "
+    " Tax-related fields are exposed via I_BusinessPartnerTaxNumber on
+    " newer waves and are NOT pulled here (we don't need them for
+    " sanctions-only screening).
+    DATA lv_business_partner TYPE c LENGTH 10.
+    DATA lv_address_id       TYPE c LENGTH 10.
+
+    " Step 1 — supplier name + business-partner key.
+    SELECT SINGLE FROM i_supplier
+      FIELDS SupplierName, BusinessPartner
       WHERE Supplier = @iv_supplier
-      INTO ( @ev_country, @ev_tax_ref, @ev_name ).
+      INTO ( @ev_name, @lv_business_partner ).
+
+    IF sy-subrc <> 0.
+      CLEAR: ev_name, ev_country.
+      RETURN.
+    ENDIF.
+
+    IF lv_business_partner IS INITIAL.
+      CLEAR ev_country.
+      RETURN.
+    ENDIF.
+
+    " Step 2 — default address ID for the business partner.
+    SELECT SINGLE FROM i_businesspartner
+      FIELDS AddressID
+      WHERE BusinessPartner = @lv_business_partner
+      INTO @lv_address_id.
+
+    IF sy-subrc <> 0 OR lv_address_id IS INITIAL.
+      CLEAR ev_country.
+      RETURN.
+    ENDIF.
+
+    " Step 3 — country for the default address.  Join via
+    " I_BUSPARTADDRESS (released BP-side address table) to
+    " I_Address_2 (the released Address master with Country).
+    SELECT SINGLE FROM i_buspartaddress AS bpa
+      INNER JOIN i_address_2 AS addr
+        ON addr~AddressID = bpa~AddressID
+      FIELDS addr~Country
+      WHERE bpa~BusinessPartner = @lv_business_partner
+        AND bpa~AddressID       = @lv_address_id
+      INTO @ev_country.
+
+    IF sy-subrc <> 0.
+      CLEAR ev_country.
+    ENDIF.
   ENDMETHOD.
 
 
@@ -186,11 +262,11 @@ CLASS zcl_qubiton_cloud_po_check IMPLEMENTATION.
     " Cloud HTTPS via Communication Arrangement.
     " Released alternative to cl_http_client.
 
-    DATA lo_dest    TYPE REF TO if_a4c_cp_destination_factory.
     DATA lo_http    TYPE REF TO if_web_http_client.
     DATA lo_request TYPE REF TO if_web_http_request.
     DATA lv_body    TYPE string.
     DATA lv_resp    TYPE string.
+    DATA lv_name_e  TYPE string.
 
     TRY.
         " Resolve the destination from the Communication Arrangement.
@@ -204,10 +280,20 @@ CLASS zcl_qubiton_cloud_po_check IMPLEMENTATION.
 
         lo_http = cl_web_http_client_manager=>create_by_http_destination( lo_destination ).
 
-        " Build the JSON request body. Keep this minimal — the cloud
-        " released JSON helpers are limited; use simple concatenation
-        " with the cloud-released cl_abap_json class if available.
-        lv_body = |\{ "name": "{ iv_name }", "country": "{ iv_country }" \}|.
+        " JSON-escape the supplier name.  iv_country is constrained to
+        " ISO-3166 (3 chars, alphanumeric) so it doesn't need escaping;
+        " iv_name can contain ", \, control chars and would produce
+        " malformed JSON if concatenated raw.  Order matters: the
+        " backslash replacement MUST run first or it will double-escape
+        " the backslashes inserted by the quote replacement.
+        lv_name_e = iv_name.
+        REPLACE ALL OCCURRENCES OF `\` IN lv_name_e WITH `\\`.
+        REPLACE ALL OCCURRENCES OF `"` IN lv_name_e WITH `\"`.
+        REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf IN lv_name_e WITH `\n`.
+        REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>newline IN lv_name_e WITH `\n`.
+        REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>horizontal_tab IN lv_name_e WITH `\t`.
+
+        lv_body = |\{ "name": "{ lv_name_e }", "country": "{ iv_country }" \}|.
 
         lo_request = lo_http->get_http_request( ).
         lo_request->set_header_fields( VALUE #(
@@ -229,10 +315,15 @@ CLASS zcl_qubiton_cloud_po_check IMPLEMENTATION.
 
         lv_resp = lo_response->get_text( ).
 
-        " Pure-string check on the JSON for the cloud's tightly
-        " constrained ABAP. If you have access to released JSON
-        " parsing (XCO_CP_JSON in newer waves) prefer that.
-        IF lv_resp CS '"hit":true'.
+        " Match `"hit":true` only on the top-level field, not as a
+        " substring of e.g. `"nothit":true` or `"hit":truemarker`.
+        " The QubitOn API normalises whitespace, so checking for both
+        " `"hit":true` and `"hit": true` (one space) covers it without
+        " needing a JSON parser.  When the cloud release exposes
+        " xco_cp_json this should be replaced with proper parsing.
+        FIND REGEX `[,{]\s*"hit"\s*:\s*true(\s|,|\})`
+             IN lv_resp.
+        IF sy-subrc = 0.
           rv_hit = abap_true.
         ENDIF.
 

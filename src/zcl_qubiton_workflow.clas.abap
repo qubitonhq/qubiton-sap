@@ -5,20 +5,29 @@
 "! workflow template can route the document to an additional approver
 "! instead of hard-blocking the user.
 "!
-"! The event raised is `ZQUBITON_RISK_DETECTED` on object type
-"! `ZQUBITON_DOC` with the document key (PO number, invoice number,
-"! payment doc) and the validation outcome as event container parameters.
+"! Three event names are raised, each on a per-document object type so
+"! customers can hang separate workflow templates off them:
+"!   `RISK_DETECTED`    on `ZQUBITON_PO`  / `ZQUBITON_INV` / `ZQUBITON_PAY`
+"!   `PAYMENT_BLOCKED`  on `ZQUBITON_PAY`
+"!   `REVIEW_REQUIRED`  on any of the three
+"! The document key (PO number, invoice number, payment doc) is the
+"! event's object key; the validation outcome (success flag, message,
+"! is_valid) is packed into the event container.
 "!
 "! ── Customer setup ─────────────────────────────────────────────────
-"!   1. SE11 → activate object type ZQUBITON_DOC (template in this class
-"!      header — copy into your namespace)
-"!   2. SWE2 → register event linkage:
-"!        Object Type:  ZQUBITON_DOC
-"!        Event:        RISK_DETECTED
-"!        Receiver Type: WS9000xxxx (your workflow template)
-"!   3. PFTC → build a workflow template that picks up the event,
-"!      reads the validation result from the event container, and
-"!      routes a decision task to the right approver group.
+"!   1. SE11/SWO1 → activate the three Z object types you intend to
+"!      use (ZQUBITON_PO / ZQUBITON_INV / ZQUBITON_PAY).  Use the
+"!      released BOR generator or copy from a working template — the
+"!      key field on each is the document number.
+"!   2. SWE2 → register one event linkage per (object type, event,
+"!      workflow) triple, e.g.:
+"!        Object Type:    ZQUBITON_PO
+"!        Event:          RISK_DETECTED
+"!        Receiver Type:  WS9000xxxx (your workflow template)
+"!      Repeat for each (object type, event) pair you want to route.
+"!   3. PFTC → build the workflow template(s) that pick up the events,
+"!      read the validation result from the event container, and route
+"!      a decision task to the right approver group.
 "!
 "! ── On / off ──────────────────────────────────────────────────────
 "!   Reads ZQUBITON_CONFIG.WORKFLOW_ENABLED. Disabled = no event raised

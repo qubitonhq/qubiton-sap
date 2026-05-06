@@ -48,8 +48,8 @@ indicator).
 
 | Attribute | Type | Source |
 |---|---|---|
-| `Belnr`              | `RBLPS-BELNR` | invoice |
-| `Gjahr`              | `GJAHR`   | invoice |
+| `Belnr`              | `RBKP-BELNR` | invoice header |
+| `Gjahr`              | `GJAHR`   | invoice header |
 | `Lifnr`              | `LIFNR`   | invoice |
 | `Land1`              | `LAND1`   | LFA1 |
 | `Verdict`            | CHAR1     | event container |
@@ -74,30 +74,61 @@ Methods: `Display` (`F110`), `Hold` (set payment block).
 
 ## Event coupling
 
-Each object type exposes the events the connector raises:
+Each object type exposes the events the connector raises. Event names
+are case-sensitive — they MUST match `zcl_qubiton_workflow`'s
+constants exactly (`RISK_DETECTED` not `RiskDetected`):
 
 | Event | Object type | Triggered by |
 |---|---|---|
-| `RiskDetected`    | `ZQUBITON_PO`  | `zcl_qubiton_workflow=>raise_event` with `gc_event_risk_detected` |
-| `RiskDetected`    | `ZQUBITON_INV` | same |
-| `PaymentBlocked`  | `ZQUBITON_PAY` | `zcl_qubiton_workflow=>raise_event` with `gc_event_payment_blocked` |
-| `ReviewRequired`  | `ZQUBITON_PO` / `_INV` / `_PAY` | `gc_event_review_required` |
+| `RISK_DETECTED`    | `ZQUBITON_PO`  | `zcl_qubiton_workflow=>raise_po_risk` (and direct `raise_event` with `gc_event_risk`) |
+| `RISK_DETECTED`    | `ZQUBITON_INV` | direct `raise_event` from invoice BAdI |
+| `PAYMENT_BLOCKED`  | `ZQUBITON_PAY` | direct `raise_event` with `gc_event_blocked` |
+| `REVIEW_REQUIRED`  | `ZQUBITON_PO` / `_INV` / `_PAY` | `gc_event_review` (this is what `zcl_qubiton_badi_po`'s "route" verdict raises today) |
 
-## Container elements
+## Event-container elements
 
-The template's container holds everything that needs to flow between
-steps. These mirror the event-container elements 1:1:
+`zcl_qubiton_workflow.raise_event` packs the validation outcome into
+a `swcont` table with these element names. The receiving workflow
+template MUST bind to these exact names — anything else, and the
+container binding is empty at runtime:
+
+| Element name | Type    | Always present? | Source |
+|---|---|---|---|
+| `EVENT_NAME` | CHAR    | yes              | `iv_event` parameter (the `gc_event_*` constant value) |
+| `MESSAGE`    | STRING  | when set         | `is_result-message` (only appended when not initial) |
+| `IS_VALID`   | CHAR1   | when set         | `is_result-is_valid` ('X' / blank) — only appended when `is_result-success = abap_true` |
+
+To carry verdict / severity / API response excerpt the connector does
+NOT pack them today. If you need them in the workflow, extend
+`zcl_qubiton_workflow.raise_event` to append additional `swcont` rows,
+or fetch them in a workflow background step that re-reads
+`ZQUBITON_BAL` (BAL log) keyed by the event timestamp. This is a
+known design gap — see the "Future enhancements" section below.
+
+## Workflow-template container elements (recommended set)
+
+Beyond the event container, the template itself defines container
+elements for inter-step bindings. These do not need to match event
+container names — pick whatever makes sense for your steps:
 
 | Element name | Type | Origin |
 |---|---|---|
-| `EventObject`        | object reference (the `Z*` object type) | event |
-| `Verdict`            | CHAR1 (`B`/`R`/`W`/`S`) | event |
-| `Severity`           | CHAR10 (`HIGH`/`MEDIUM`/`LOW`) | event |
-| `ApiResponseExtract` | STRING | event |
-| `ApproverDecision`   | CHAR10 (`APPROVE`/`REJECT`/`ESCALATE`) | step result |
-| `ApproverComment`    | STRING | step result |
+| `EventObject`     | object reference (the `Z*` object type) | event linkage (object key) |
+| `EventName`       | CHAR | bound from event container `EVENT_NAME` |
+| `EventMessage`    | STRING | bound from event container `MESSAGE` |
+| `IsValid`         | CHAR1 | bound from event container `IS_VALID` |
+| `ApproverDecision`| CHAR10 (`APPROVE`/`REJECT`/`ESCALATE`) | step result |
+| `ApproverComment` | STRING | step result |
 
 ## Step diagram (top-level)
+
+The diagram below references a `Severity` field. The connector does
+NOT emit severity in the event container today — it emits
+`EVENT_NAME`/`MESSAGE`/`IS_VALID`. To use this diagram as drawn,
+either (a) extend `zcl_qubiton_workflow.raise_event` to pack
+severity from the validation result, or (b) collapse Step 2 into a
+single User Decision routed by approval-rule lookup tables instead
+of branching on Severity.
 
 ```
                                  [Start]

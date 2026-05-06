@@ -1,9 +1,19 @@
 # Reference iFlow — `qubiton_po_sanctions.iflw`
 
 Cloud Pattern A reference for SAP Integration Suite / SAP Cloud
-Integration. Subscribes to S/4HANA Cloud's "Purchase Order Created"
-business event, calls `api.qubiton.com/api/sanctions/check`, writes a
-Z-flag back via OData, and notifies AP via Microsoft Teams.
+Integration. Receives the S/4HANA Cloud "Purchase Order Created"
+business event over an HTTPS sender adapter (the released
+Communication Arrangement webhook), calls
+`api.qubiton.com/api/sanctions/check`, writes a Z-flag back via
+OData, and notifies AP via Microsoft Teams.
+
+> **Sender adapter — `HTTPS`, not AdvancedEventMesh.** S/4HANA Cloud
+> Public Edition publishes business events through either an HTTPS
+> webhook (the simplest option, configured via a Communication
+> Arrangement on the S/4 side) or SAP Event Mesh (AMQP). The iFlow
+> XML in this directory uses the HTTPS sender adapter on path
+> `/qubiton/po-sanctions`. AdvancedEventMesh is a separate SAP
+> product (Solace) and is NOT what S/4 Cloud uses by default.
 
 ## Files
 
@@ -71,48 +81,73 @@ accidentally going live with an empty key.
 ## Steps the iFlow performs
 
 ```
-[Sender] PO Created event
+[Sender HTTPS] /qubiton/po-sanctions       ← S/4 Cloud webhook (JSON)
    │
    ▼
-[Content Modifier] Set headers   apikey + Content-Type
+[Content Modifier] Set headers             apikey + Content-Type
    │
    ▼
-[Content Modifier] Capture       PO + Supplier + Country into properties
+[JSON-to-XML Converter] Inbound body       JSON event → XML for XPath
    │
    ▼
-[Content Modifier] Build body    JSON for /api/sanctions/check
+[Content Modifier] Capture                 PO + Supplier + Country into properties (XPath)
    │
    ▼
-[Request-Reply] HTTP receiver    POST {{qubiton_base_url}}/api/sanctions/check
+[Content Modifier] Build body              JSON for /api/sanctions/check
    │
    ▼
-[Router] hit == true ?
+[Request-Reply] HTTP receiver              POST {{qubiton_base_url}}/api/sanctions/check
+   │
+   ▼
+[JSON-to-XML Converter] QubitOn response   JSON response → XML for XPath
+   │
+   ▼
+[Content Modifier] Extract hit             property QubitOnHit = //hit/text() (XPath)
+   │
+   ▼
+[Router] QubitOnHit == 'true' ?
    │            │
    │ no         │ yes
    │            ▼
-   │      [Request-Reply] HTTP receiver  PATCH /A_PurchaseOrder
+   │      [Request-Reply] HTTP receiver    PATCH /A_PurchaseOrder
    │            │
    │            ▼
-   │      [Request-Reply] HTTP receiver  POST teams webhook
+   │      [Request-Reply] HTTP receiver    POST teams webhook
    │            │
    ▼            ▼
 [End]        [End]
 ```
+
+> **Why the JSON-to-XML converter steps?** Per SAP's documented
+> Content Modifier types (Constant / XPath / Expression / Header /
+> Property), only XPath supports body field access — and XPath
+> operates on XML only. The HTTPS sender adapter and the QubitOn
+> HTTP receiver both deliver bodies as JSON, so a Content Modifier
+> with `Type=xpath` against the raw JSON would resolve to nothing.
+> The JSON-to-XML Converter step (released CPI step type) wraps each
+> JSON object under a `<root>` element so XPath expressions like
+> `//hit/text()` work. Earlier drafts used a `${jsonPath:$.field}`
+> placeholder on the Property tab — that's not a valid CPI
+> expression (neither Camel-canonical nor SAP-documented) and would
+> resolve to the literal string. Alternative: a Groovy script step
+> using `JsonSlurper`; the converter approach keeps the iFlow
+> declarative.
 
 ## Adapting for invoice / payment
 
 Two derivative iFlows follow the same shape but listen for different
 S/4 Cloud events and call different QubitOn endpoints:
 
-| Source iFlow | Sender event | QubitOn endpoint |
-|---|---|---|
-| `qubiton_po_sanctions.iflw`        | `PurchaseOrder.Created.v1`      | `/api/sanctions/check` |
-| `qubiton_invoice_sanctions.iflw` (derive) | `SupplierInvoice.Created.v1`    | `/api/sanctions/check` |
-| `qubiton_payment_sanctions.iflw` (derive) | `PaymentRun.Approved.v1`        | `/api/sanctions/check` |
+| Source iFlow | S/4 Cloud business event | Sender path | QubitOn endpoint |
+|---|---|---|---|
+| `qubiton_po_sanctions.iflw`        | `PurchaseOrder.Created`     | `/qubiton/po-sanctions`      | `/api/sanctions/check` |
+| `qubiton_invoice_sanctions.iflw` (derive) | `SupplierInvoice.Created`   | `/qubiton/invoice-sanctions` | `/api/sanctions/check` |
+| `qubiton_payment_sanctions.iflw` (derive) | `PaymentRun.Approved`       | `/qubiton/payment-sanctions` | `/api/sanctions/check` |
 
-Copy this iFlow, change the sender event subscription, and update the
-*Capture* step's XPath expressions to read the right fields out of the
-new event payload.
+Copy this iFlow, change the sender path so it doesn't collide with
+the PO flow, point the matching S/4 Cloud Communication Arrangement
+at the new path, and update the *Capture* step's XPath expressions
+to read the right fields out of the new event payload.
 
 ## Authentication
 

@@ -89,19 +89,34 @@
       </bpmn2:extensionElements>
     </bpmn2:participant>
 
-    <!-- Channel: S/4 Cloud → CPI (Cloud Event subscriber) -->
+    <!-- Channel: S/4 Cloud → CPI (Cloud Event subscriber)
+         S/4HANA Cloud Public Edition emits business events through
+         either the SAP Event Mesh (formerly Enterprise Messaging) or
+         a webhook (HTTPS sender adapter) configured in S/4 Cloud's
+         Communication Arrangement.  Pick the adapter that matches your
+         tenant's outbound topology:
+           * AMQP / Event Mesh:  ComponentType="EnterpriseMessaging"
+           * Webhook:            ComponentType="HTTPS" (preferred for
+                                 simple deployments — POSTed by S/4
+                                 Cloud as soon as the event fires)
+         AdvancedEventMesh is a separate SAP product (acquired Solace)
+         and is NOT what S/4 Cloud uses by default. -->
     <bpmn2:messageFlow id="MsgFlow_From_S4"
                        sourceRef="Participant_S4_Cloud"
                        targetRef="StartEvent_1"
-                       name="ProductSubscription/PurchaseOrder.Created.v1">
+                       name="PurchaseOrder.Created (S/4 Cloud business event)">
       <bpmn2:extensionElements>
         <ifl:property>
           <key>ComponentType</key>
-          <value>HCIAdvancedEventMesh</value>
+          <value>HTTPS</value>
         </ifl:property>
         <ifl:property>
           <key>direction</key>
           <value>Sender</value>
+        </ifl:property>
+        <ifl:property>
+          <key>address</key>
+          <value>/qubiton/po-sanctions</value>
         </ifl:property>
       </bpmn2:extensionElements>
     </bpmn2:messageFlow>
@@ -216,8 +231,42 @@
       <bpmn2:outgoing>SeqFlow_HeadersToCapture</bpmn2:outgoing>
     </bpmn2:callActivity>
 
-    <!-- Step 2: Capture the PO header context as exchange properties so
-         the writeback step can refer to PurchaseOrder later. -->
+    <!-- Step 2a: Convert the inbound JSON event body to XML so the
+         downstream Content Modifier can read fields via XPath.
+         SAP CPI's Content Modifier does NOT support a built-in
+         JSONPath expression on the property tab — only Constant /
+         XPath / Expression / Header / Property are documented (see
+         help.sap.com → Define Content Modifier).  XPath operates on
+         XML only, so for JSON bodies the canonical SAP-documented
+         pattern is: insert a JSON-to-XML Converter step, then read
+         fields with XPath in the next Content Modifier.  An earlier
+         draft used `${jsonPath:$.field}` directly — that placeholder
+         is not a valid CPI expression (it's neither Camel-canonical
+         nor SAP-documented).  Alternative: a Groovy script step with
+         JsonSlurper; the converter approach keeps the iFlow
+         declarative. -->
+    <bpmn2:callActivity id="JsonToXml_Inbound"
+                        name="Convert inbound JSON to XML">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>activityType</key>
+          <value>JsonToXmlConverter</value>
+        </ifl:property>
+        <ifl:property>
+          <key>useNamespaceMapping</key>
+          <value>false</value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+      <bpmn2:incoming>SeqFlow_HeadersToConvertIn</bpmn2:incoming>
+      <bpmn2:outgoing>SeqFlow_ConvertInToCapture</bpmn2:outgoing>
+    </bpmn2:callActivity>
+
+    <!-- Step 2b: Capture the PO header context as exchange properties
+         via XPath against the JSON-converted XML body.  Default
+         JSON-to-XML conversion wraps every JSON object under a
+         `<root>` element; adjust the XPaths if your tenant's event
+         payload nests fields deeper or your converter uses
+         "Streaming" / "Use Namespace Mapping" options. -->
     <bpmn2:callActivity id="ContentMod_Capture"
                         name="Capture PO header to properties">
       <bpmn2:extensionElements>
@@ -235,7 +284,7 @@
           </value>
         </ifl:property>
       </bpmn2:extensionElements>
-      <bpmn2:incoming>SeqFlow_HeadersToCapture</bpmn2:incoming>
+      <bpmn2:incoming>SeqFlow_ConvertInToCapture</bpmn2:incoming>
       <bpmn2:outgoing>SeqFlow_CaptureToBuild</bpmn2:outgoing>
     </bpmn2:callActivity>
 
@@ -269,12 +318,58 @@
         </ifl:property>
       </bpmn2:extensionElements>
       <bpmn2:incoming>SeqFlow_BuildToCall</bpmn2:incoming>
-      <bpmn2:outgoing>SeqFlow_CallToBranch</bpmn2:outgoing>
+      <bpmn2:outgoing>SeqFlow_CallToConvert</bpmn2:outgoing>
     </bpmn2:serviceTask>
+
+    <!-- Step 4b: Convert the QubitOn JSON response to XML so the
+         next step can pull `hit` via XPath.  Same reason as Step 2a:
+         CPI Content Modifier doesn't have a documented JSONPath
+         expression; XPath is the supported declarative path. -->
+    <bpmn2:callActivity id="JsonToXml_Response"
+                        name="Convert QubitOn response to XML">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>activityType</key>
+          <value>JsonToXmlConverter</value>
+        </ifl:property>
+        <ifl:property>
+          <key>useNamespaceMapping</key>
+          <value>false</value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+      <bpmn2:incoming>SeqFlow_CallToConvert</bpmn2:incoming>
+      <bpmn2:outgoing>SeqFlow_ConvertToExtract</bpmn2:outgoing>
+    </bpmn2:callActivity>
+
+    <!-- Step 4c: Extract `hit` from the XML-converted response into
+         an exchange property.  The gateway condition compares the
+         property string instead of trying to access in.body.hit
+         directly — CPI sees in.body as text, so direct dot-access
+         resolves to null and the "hit==true" branch is never taken.
+         The XPath assumes the JSON-to-XML default wraps fields
+         under <root>; adjust if your converter is set up to use a
+         namespace prefix or streaming output. -->
+    <bpmn2:callActivity id="ContentMod_ExtractHit"
+                        name="Extract hit from XML response">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>activityType</key>
+          <value>Enricher</value>
+        </ifl:property>
+        <ifl:property>
+          <key>propertyTable</key>
+          <value>
+            &lt;row&gt;&lt;cell id="Action"&gt;Create&lt;/cell&gt;&lt;cell id="Name"&gt;QubitOnHit&lt;/cell&gt;&lt;cell id="Type"&gt;xpath&lt;/cell&gt;&lt;cell id="Value"&gt;//hit/text()&lt;/cell&gt;&lt;/row&gt;
+          </value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+      <bpmn2:incoming>SeqFlow_ConvertToExtract</bpmn2:incoming>
+      <bpmn2:outgoing>SeqFlow_ExtractToBranch</bpmn2:outgoing>
+    </bpmn2:callActivity>
 
     <!-- Step 5: Branch on the verdict — was it a sanctions hit? -->
     <bpmn2:exclusiveGateway id="Branch_OnHit" name="hit == true ?">
-      <bpmn2:incoming>SeqFlow_CallToBranch</bpmn2:incoming>
+      <bpmn2:incoming>SeqFlow_ExtractToBranch</bpmn2:incoming>
       <bpmn2:outgoing>SeqFlow_BranchToWriteback</bpmn2:outgoing>
       <bpmn2:outgoing>SeqFlow_BranchToEnd</bpmn2:outgoing>
     </bpmn2:exclusiveGateway>
@@ -312,8 +407,11 @@
     <bpmn2:sequenceFlow id="SeqFlow_StartToHeaders"
                         sourceRef="StartEvent_1"
                         targetRef="ContentMod_SetHeaders"/>
-    <bpmn2:sequenceFlow id="SeqFlow_HeadersToCapture"
+    <bpmn2:sequenceFlow id="SeqFlow_HeadersToConvertIn"
                         sourceRef="ContentMod_SetHeaders"
+                        targetRef="JsonToXml_Inbound"/>
+    <bpmn2:sequenceFlow id="SeqFlow_ConvertInToCapture"
+                        sourceRef="JsonToXml_Inbound"
                         targetRef="ContentMod_Capture"/>
     <bpmn2:sequenceFlow id="SeqFlow_CaptureToBuild"
                         sourceRef="ContentMod_Capture"
@@ -321,15 +419,21 @@
     <bpmn2:sequenceFlow id="SeqFlow_BuildToCall"
                         sourceRef="ContentMod_BuildQubitonRequest"
                         targetRef="HttpCall_QubitOn"/>
-    <bpmn2:sequenceFlow id="SeqFlow_CallToBranch"
+    <bpmn2:sequenceFlow id="SeqFlow_CallToConvert"
                         sourceRef="HttpCall_QubitOn"
+                        targetRef="JsonToXml_Response"/>
+    <bpmn2:sequenceFlow id="SeqFlow_ConvertToExtract"
+                        sourceRef="JsonToXml_Response"
+                        targetRef="ContentMod_ExtractHit"/>
+    <bpmn2:sequenceFlow id="SeqFlow_ExtractToBranch"
+                        sourceRef="ContentMod_ExtractHit"
                         targetRef="Branch_OnHit"/>
     <bpmn2:sequenceFlow id="SeqFlow_BranchToWriteback"
                         sourceRef="Branch_OnHit"
                         targetRef="HttpCall_Writeback"
                         name="hit==true">
       <bpmn2:conditionExpression xsi:type="bpmn2:tFormalExpression">
-        ${in.body[hit]} == true
+        ${property.QubitOnHit} = 'true'
       </bpmn2:conditionExpression>
     </bpmn2:sequenceFlow>
     <bpmn2:sequenceFlow id="SeqFlow_BranchToEnd"
@@ -345,8 +449,10 @@
 
   </bpmn2:process>
 
-  <!-- Empty processes for the participant placeholders. CPI requires
-       these to balance the BPMN graph but no logic lives here. -->
+  <!-- Receiver participant processes.  CPI iFlow exports always
+       include these empty placeholders — the BPMN graph references
+       them via participant/processRef.  Don't delete; the designer
+       regenerates them on save. -->
   <bpmn2:process id="Process_Sender" name="Sender Process"/>
   <bpmn2:process id="Process_Writeback" name="Writeback Process"/>
   <bpmn2:process id="Process_Teams" name="Teams Process"/>

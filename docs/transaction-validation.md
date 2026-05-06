@@ -294,7 +294,7 @@ What you build:
 
 ### Pattern B — released cloud BAdI (PO save only, currently)
 
-For purchase orders, SAP did release a cloud-extensible BAdI: `BD_MMPUR_FINAL_CHECK_PO` (interface `IF_EX_BD_MMPUR_FINAL_CHECK_PO`). Customers register implementations via the Fiori app *Custom Fields and Logic*.
+For purchase orders, SAP did release a cloud-extensible BAdI: `BD_MMPUR_FINAL_CHECK_PO` (BAdI definition). The implementation interface is `IF_EX_MMPUR_FINAL_CHECK_PO` — no `BD_` prefix on the interface side; an earlier cut of this doc had `IF_EX_BD_MMPUR_FINAL_CHECK_PO`, which doesn't exist. Customers register implementations via the Fiori app *Custom Fields and Logic*; the method signature uses the modern object-reference style (a PO API object reference plus a messages table), not the classic `IS_HEADER` / `IT_ITEMS` / `CT_MESSAGES` shape from on-prem `IF_EX_ME_PROCESS_PO_CUST` — pull the actual signature from ADT before adapting the reference body.
 
 > **Verification status — read this before adopting**: the released-BAdI catalogue for Public Cloud is not consolidated in one place by SAP, and the exact interface signature varies across cloud release waves (CE 2308 / 2402 / 2502+). The QubitOn team validated the reference template against the public SAP Help portal; we do NOT have continuous-access cloud sandbox validation. Confirm the BAdI exists under your tenant's release in Fiori app *Custom Fields and Logic* before promoting to PRD.
 
@@ -364,15 +364,15 @@ lo_wf->raise_po_risk(
 
 What the customer wires up:
 
-1. **Object type** — SE11/SWO1 → activate `ZQUBITON_DOC` (or `_PO`/`_INV`/`_PAY` per document)
-2. **Event linkage** — SWE2 → register `ZQUBITON_PO/RISK_DETECTED` against your workflow template (`WS9000xxxx`)
+1. **Object types** — SE11/SWO1 → activate `ZQUBITON_PO`, `ZQUBITON_INV`, `ZQUBITON_PAY` (one per document type the customer screens). The constants in `zcl_qubiton_workflow` reference these three names; an earlier draft of this doc said `ZQUBITON_DOC` — that's incorrect, the connector uses per-document types.
+2. **Event linkage** — SWE2 → register `ZQUBITON_PO/RISK_DETECTED` (and the `_INV`/`_PAY` equivalents) against your workflow template (`WS9000xxxx`).
 3. **Workflow template** — PFTC → build a template per the spec at [`docs/templates/workflow/ws_qubiton_risk_review.md`](templates/workflow/ws_qubiton_risk_review.md):
-   - Reads the validation result from the event container
-   - Branches on severity (HIGH / MEDIUM / LOW)
-   - Creates a User Decision task assigned to the right org unit
+   - Reads the validation result from the event container fields the connector actually emits: `EVENT_NAME`, `MESSAGE`, `IS_VALID`.
+   - Branches on `EVENT_NAME` (`RISK_DETECTED` vs `PAYMENT_BLOCKED` vs `REVIEW_REQUIRED`) and `IS_VALID`. **Severity is not currently emitted** — extend `zcl_qubiton_workflow.raise_event` to append a `SEVERITY` element if you want HIGH/MEDIUM/LOW routing, then bind it in the template container.
+   - Creates a User Decision task assigned to the right org unit.
 4. **On / off** — `ZQUBITON_CONFIG.WORKFLOW_ENABLED = 'X'`. Disabled = no event raised, BAdI surfaces the warning to the user inline instead.
 
-The reference helper raises events via `SAP_WAPI_CREATE_EVENT` with the validation outcome packed into the event container as named parameters (`MESSAGE`, `IS_VALID`, `EVENT_NAME`).
+The reference helper raises events via `SAP_WAPI_CREATE_EVENT` with the validation outcome packed into the event container as named parameters (`EVENT_NAME` always; `MESSAGE` when not initial; `IS_VALID` when the API call itself succeeded).
 
 ### BRF+ — Declarative risk-policy decisions (`zcl_qubiton_brfplus`)
 
