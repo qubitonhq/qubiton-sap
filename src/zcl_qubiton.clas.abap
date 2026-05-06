@@ -733,6 +733,15 @@ CLASS zcl_qubiton DEFINITION
       RETURNING
         VALUE(rv_json) TYPE string.
 
+    "! Build a JSON array of strings from a comma-separated value list.
+    "! Empty entries are skipped; each non-empty entry is JSON-escaped and
+    "! quoted. Used by endpoints that expect a body of the shape ["a","b"].
+    METHODS build_json_array
+      IMPORTING
+        iv_csv         TYPE string
+      RETURNING
+        VALUE(rv_json) TYPE string.
+
     "! Check S_RFC authorization
     METHODS check_authority
       RAISING
@@ -999,6 +1008,26 @@ CLASS zcl_qubiton IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD build_json_array.
+    " Splits iv_csv on commas, trims each entry, JSON-escapes and quotes
+    " non-empty entries, and joins them as a JSON array.  Empty entries
+    " (consecutive commas, leading/trailing commas) are skipped.
+    DATA lv_sep  TYPE string.
+    DATA lv_item TYPE string.
+
+    rv_json = `[`.
+    SPLIT iv_csv AT ',' INTO TABLE DATA(lt_items).
+    LOOP AT lt_items INTO lv_item.
+      CONDENSE lv_item.
+      IF lv_item IS NOT INITIAL.
+        rv_json = rv_json && lv_sep && `"` && escape_json_value( lv_item ) && `"`.
+        lv_sep = `,`.
+      ENDIF.
+    ENDLOOP.
+    rv_json = rv_json && `]`.
+  ENDMETHOD.
+
+
   " ── Address Validation ──────────────────────────────────────────────────
 
   METHOD validate_address.
@@ -1022,8 +1051,8 @@ CLASS zcl_qubiton IMPLEMENTATION.
     rv_json = post(
       iv_path = '/api/tax/validate'
       iv_body = build_json( VALUE #(
-        ( name = 'taxNumber'          value = iv_tax_number )
-        ( name = 'taxType'            value = iv_tax_type )
+        ( name = 'identityNumber'     value = iv_tax_number )
+        ( name = 'identityNumberType' value = iv_tax_type )
         ( name = 'country'            value = iv_country )
         ( name = 'companyName'        value = iv_company_name )
         ( name = 'businessEntityType' value = iv_business_entity_type )
@@ -1035,9 +1064,9 @@ CLASS zcl_qubiton IMPLEMENTATION.
     rv_json = post(
       iv_path = '/api/tax/format-validate'
       iv_body = build_json( VALUE #(
-        ( name = 'taxNumber' value = iv_tax_number )
-        ( name = 'taxType'   value = iv_tax_type )
-        ( name = 'country'   value = iv_country )
+        ( name = 'identityNumber'     value = iv_tax_number )
+        ( name = 'identityNumberType' value = iv_tax_type )
+        ( name = 'countryIso2'        value = iv_country )
       ) ) ).
   ENDMETHOD.
 
@@ -1105,10 +1134,10 @@ CLASS zcl_qubiton IMPLEMENTATION.
     rv_json = post(
       iv_path = '/api/businessregistration/lookup'
       iv_body = build_json( VALUE #(
-        ( name = 'companyName' value = iv_company_name )
-        ( name = 'country'     value = iv_country )
-        ( name = 'state'       value = iv_state )
-        ( name = 'city'        value = iv_city )
+        ( name = 'entityName' value = iv_company_name )
+        ( name = 'country'    value = iv_country )
+        ( name = 'state'      value = iv_state )
+        ( name = 'city'       value = iv_city )
       ) ) ).
   ENDMETHOD.
 
@@ -1289,12 +1318,28 @@ CLASS zcl_qubiton IMPLEMENTATION.
   " ── ESG & Cybersecurity ─────────────────────────────────────────────────
 
   METHOD lookup_esg_score.
+    " country and domain are bound as [FromQuery] on the .NET controller, not body.
+    " Only companyName goes in the JSON body (esgId not exposed by this connector method).
+    DATA lv_path TYPE string.
+    DATA lv_qs   TYPE string.
+
+    IF iv_country IS NOT INITIAL.
+      lv_qs = `?country=` && cl_http_utility=>escape_url( iv_country ).
+    ENDIF.
+    IF iv_domain IS NOT INITIAL.
+      IF lv_qs IS INITIAL.
+        lv_qs = `?domain=` && cl_http_utility=>escape_url( iv_domain ).
+      ELSE.
+        lv_qs = lv_qs && `&domain=` && cl_http_utility=>escape_url( iv_domain ).
+      ENDIF.
+    ENDIF.
+
+    lv_path = `/api/esg/Scores` && lv_qs.
+
     rv_json = post(
-      iv_path = '/api/esg/Scores'
+      iv_path = lv_path
       iv_body = build_json( VALUE #(
         ( name = 'companyName' value = iv_company_name )
-        ( name = 'country'     value = iv_country )
-        ( name = 'domain'      value = iv_domain )
       ) ) ).
   ENDMETHOD.
 
@@ -1497,22 +1542,10 @@ CLASS zcl_qubiton IMPLEMENTATION.
 
 
   METHOD lookup_exchange_rates.
-    " baseCurrency is a path parameter; body is the dates as a JSON array
+    " baseCurrency is a path parameter; body is the dates as a JSON array.
     DATA(lv_path) = `/api/currency/exchange-rates/` && iv_base_currency.
-    " Build a simple JSON array from comma-separated dates
-    DATA(lv_body) = `[`.
-    DATA lv_sep TYPE string.
-    DATA lv_date TYPE string.
-    SPLIT iv_dates AT ',' INTO TABLE DATA(lt_dates).
-    LOOP AT lt_dates INTO lv_date.
-      CONDENSE lv_date.
-      IF lv_date IS NOT INITIAL.
-        lv_body = lv_body && lv_sep && `"` && escape_json_value( lv_date ) && `"`.
-        lv_sep = `,`.
-      ENDIF.
-    ENDLOOP.
-    lv_body = lv_body && `]`.
-    rv_json = post( iv_path = lv_path iv_body = lv_body ).
+    rv_json = post( iv_path = lv_path
+                    iv_body = build_json_array( iv_dates ) ).
   ENDMETHOD.
 
 
