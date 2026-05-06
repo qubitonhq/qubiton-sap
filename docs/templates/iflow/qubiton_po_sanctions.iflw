@@ -1,0 +1,354 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  QubitOn — PO Sanctions Check (SAP Integration Suite iFlow)
+
+  Reference iFlow definition for Cloud Pattern A: subscribes to the
+  S/4HANA Cloud Public Edition "Purchase Order Created/Updated" business
+  event, calls api.qubiton.com/api/sanctions/check with the supplier
+  payload, and on a hit (1) writes a status flag back to the PO via
+  OData and (2) emits a Microsoft Teams / email notification to AP.
+
+  This is the BPMN-XML form of the iFlow as exported by the SAP Cloud
+  Integration designer (.iflw inside the iFlow project ZIP). To deploy:
+
+    1. Open SAP Cloud Integration → Design → Create / Import package
+    2. Import → Browse → select the package ZIP that contains this file
+       under src/main/resources/scenarioflows/integrationflow/
+    3. Configure externalised parameters (apikey, target tenant,
+       Microsoft Teams webhook) in the Tenant Configuration tab
+    4. Save → Deploy
+    5. Subscribe to the "Purchase Order Created" Cloud Event from the
+       S/4 Cloud tenant via the Event Mesh / Event Broker tab
+
+  Externalised parameters (set via the iFlow's Configuration tab):
+
+    {{apikey}}             = your QubitOn API key
+    {{qubiton_base_url}}   = https://api.qubiton.com
+    {{teams_webhook_url}}  = https://outlook.office.com/webhook/...
+    {{s4_tenant_url}}      = https://my-tenant.s4hana.cloud.sap
+
+  Note: the BPMN element IDs below are stable; renaming them breaks
+  the link between this XML and the .prop / .config files in the same
+  iFlow package. Edit through the Cloud Integration designer rather
+  than by hand whenever possible.
+-->
+<bpmn2:definitions
+  xmlns:bpmn2="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:ifl="http://www.sap.com/ifl"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  id="qubiton_po_sanctions"
+  targetNamespace="http://sap.com/cloud/integration">
+
+  <bpmn2:collaboration id="Collaboration_1" name="QubitOn PO Sanctions Check">
+
+    <!-- Sender: S/4HANA Cloud Public Edition (Cloud Event subscriber) -->
+    <bpmn2:participant id="Participant_S4_Cloud"
+                       name="S/4HANA Cloud Public Edition"
+                       processRef="Process_Sender">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>ifl:type</key>
+          <value>EndpointSender</value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+    </bpmn2:participant>
+
+    <!-- Receiver 1: QubitOn API -->
+    <bpmn2:participant id="Participant_QubitOn"
+                       name="QubitOn API"
+                       processRef="Process_QubitOn">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>ifl:type</key>
+          <value>EndpointRecevier</value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+    </bpmn2:participant>
+
+    <!-- Receiver 2: S/4 Cloud (writeback via OData) -->
+    <bpmn2:participant id="Participant_S4_Writeback"
+                       name="S/4 Cloud OData"
+                       processRef="Process_Writeback">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>ifl:type</key>
+          <value>EndpointRecevier</value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+    </bpmn2:participant>
+
+    <!-- Receiver 3: Microsoft Teams webhook -->
+    <bpmn2:participant id="Participant_Teams"
+                       name="Microsoft Teams"
+                       processRef="Process_Teams">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>ifl:type</key>
+          <value>EndpointRecevier</value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+    </bpmn2:participant>
+
+    <!-- Channel: S/4 Cloud → CPI (Cloud Event subscriber) -->
+    <bpmn2:messageFlow id="MsgFlow_From_S4"
+                       sourceRef="Participant_S4_Cloud"
+                       targetRef="StartEvent_1"
+                       name="ProductSubscription/PurchaseOrder.Created.v1">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>ComponentType</key>
+          <value>HCIAdvancedEventMesh</value>
+        </ifl:property>
+        <ifl:property>
+          <key>direction</key>
+          <value>Sender</value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+    </bpmn2:messageFlow>
+
+    <!-- Channel: CPI → QubitOn API (HTTPS receiver) -->
+    <bpmn2:messageFlow id="MsgFlow_To_QubitOn"
+                       sourceRef="HttpCall_QubitOn"
+                       targetRef="Participant_QubitOn"
+                       name="POST /api/sanctions/check">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>ComponentType</key>
+          <value>HTTP</value>
+        </ifl:property>
+        <ifl:property>
+          <key>direction</key>
+          <value>Receiver</value>
+        </ifl:property>
+        <ifl:property>
+          <key>httpAddress</key>
+          <value>{{qubiton_base_url}}/api/sanctions/check</value>
+        </ifl:property>
+        <ifl:property>
+          <key>httpMethod</key>
+          <value>POST</value>
+        </ifl:property>
+        <ifl:property>
+          <key>credentialName</key>
+          <value/>
+        </ifl:property>
+      </bpmn2:extensionElements>
+    </bpmn2:messageFlow>
+
+    <!-- Channel: CPI → S/4 Cloud OData (writeback) -->
+    <bpmn2:messageFlow id="MsgFlow_To_S4"
+                       sourceRef="HttpCall_Writeback"
+                       targetRef="Participant_S4_Writeback"
+                       name="PATCH /sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV/A_PurchaseOrder">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>ComponentType</key>
+          <value>HTTP</value>
+        </ifl:property>
+        <ifl:property>
+          <key>direction</key>
+          <value>Receiver</value>
+        </ifl:property>
+        <ifl:property>
+          <key>httpAddress</key>
+          <value>{{s4_tenant_url}}/sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV/A_PurchaseOrder('${property.PurchaseOrder}')</value>
+        </ifl:property>
+        <ifl:property>
+          <key>httpMethod</key>
+          <value>PATCH</value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+    </bpmn2:messageFlow>
+
+    <!-- Channel: CPI → Microsoft Teams (webhook) -->
+    <bpmn2:messageFlow id="MsgFlow_To_Teams"
+                       sourceRef="HttpCall_Teams"
+                       targetRef="Participant_Teams"
+                       name="POST {{teams_webhook_url}}">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>ComponentType</key>
+          <value>HTTP</value>
+        </ifl:property>
+        <ifl:property>
+          <key>direction</key>
+          <value>Receiver</value>
+        </ifl:property>
+        <ifl:property>
+          <key>httpAddress</key>
+          <value>{{teams_webhook_url}}</value>
+        </ifl:property>
+        <ifl:property>
+          <key>httpMethod</key>
+          <value>POST</value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+    </bpmn2:messageFlow>
+
+  </bpmn2:collaboration>
+
+  <!-- Main integration process -->
+  <bpmn2:process id="Process_QubitOn" name="QubitOn Sanctions Check Process">
+
+    <bpmn2:startEvent id="StartEvent_1" name="PO Created/Updated">
+      <bpmn2:outgoing>SeqFlow_StartToHeaders</bpmn2:outgoing>
+    </bpmn2:startEvent>
+
+    <!-- Step 1: Set the apikey + Content-Type headers from the
+         externalised parameter so the credential never appears in
+         the BPMN body. -->
+    <bpmn2:callActivity id="ContentMod_SetHeaders"
+                        name="Set apikey + Content-Type headers">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>activityType</key>
+          <value>Enricher</value>
+        </ifl:property>
+        <ifl:property>
+          <key>headerTable</key>
+          <value>
+            &lt;row&gt;&lt;cell id="Action"&gt;Create&lt;/cell&gt;&lt;cell id="Name"&gt;apikey&lt;/cell&gt;&lt;cell id="Type"&gt;external_parameter&lt;/cell&gt;&lt;cell id="Value"&gt;{{apikey}}&lt;/cell&gt;&lt;/row&gt;
+            &lt;row&gt;&lt;cell id="Action"&gt;Create&lt;/cell&gt;&lt;cell id="Name"&gt;Content-Type&lt;/cell&gt;&lt;cell id="Type"&gt;constant&lt;/cell&gt;&lt;cell id="Value"&gt;application/json&lt;/cell&gt;&lt;/row&gt;
+          </value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+      <bpmn2:incoming>SeqFlow_StartToHeaders</bpmn2:incoming>
+      <bpmn2:outgoing>SeqFlow_HeadersToCapture</bpmn2:outgoing>
+    </bpmn2:callActivity>
+
+    <!-- Step 2: Capture the PO header context as exchange properties so
+         the writeback step can refer to PurchaseOrder later. -->
+    <bpmn2:callActivity id="ContentMod_Capture"
+                        name="Capture PO header to properties">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>activityType</key>
+          <value>Enricher</value>
+        </ifl:property>
+        <ifl:property>
+          <key>propertyTable</key>
+          <value>
+            &lt;row&gt;&lt;cell id="Action"&gt;Create&lt;/cell&gt;&lt;cell id="Name"&gt;PurchaseOrder&lt;/cell&gt;&lt;cell id="Type"&gt;xpath&lt;/cell&gt;&lt;cell id="Value"&gt;//PurchaseOrder/text()&lt;/cell&gt;&lt;/row&gt;
+            &lt;row&gt;&lt;cell id="Action"&gt;Create&lt;/cell&gt;&lt;cell id="Name"&gt;Supplier&lt;/cell&gt;&lt;cell id="Type"&gt;xpath&lt;/cell&gt;&lt;cell id="Value"&gt;//Supplier/text()&lt;/cell&gt;&lt;/row&gt;
+            &lt;row&gt;&lt;cell id="Action"&gt;Create&lt;/cell&gt;&lt;cell id="Name"&gt;Country&lt;/cell&gt;&lt;cell id="Type"&gt;xpath&lt;/cell&gt;&lt;cell id="Value"&gt;//SupplierCountry/text()&lt;/cell&gt;&lt;/row&gt;
+            &lt;row&gt;&lt;cell id="Action"&gt;Create&lt;/cell&gt;&lt;cell id="Name"&gt;SupplierName&lt;/cell&gt;&lt;cell id="Type"&gt;xpath&lt;/cell&gt;&lt;cell id="Value"&gt;//SupplierName/text()&lt;/cell&gt;&lt;/row&gt;
+          </value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+      <bpmn2:incoming>SeqFlow_HeadersToCapture</bpmn2:incoming>
+      <bpmn2:outgoing>SeqFlow_CaptureToBuild</bpmn2:outgoing>
+    </bpmn2:callActivity>
+
+    <!-- Step 3: Build the JSON body for the QubitOn /api/sanctions/check call. -->
+    <bpmn2:callActivity id="ContentMod_BuildQubitonRequest"
+                        name="Build QubitOn JSON body">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>activityType</key>
+          <value>Enricher</value>
+        </ifl:property>
+        <ifl:property>
+          <key>messageBody</key>
+          <value><![CDATA[{
+  "name": "${property.SupplierName}",
+  "country": "${property.Country}",
+  "matchThreshold": 0.85
+}]]></value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+      <bpmn2:incoming>SeqFlow_CaptureToBuild</bpmn2:incoming>
+      <bpmn2:outgoing>SeqFlow_BuildToCall</bpmn2:outgoing>
+    </bpmn2:callActivity>
+
+    <!-- Step 4: Make the HTTPS call to QubitOn (Request-Reply). -->
+    <bpmn2:serviceTask id="HttpCall_QubitOn" name="POST /api/sanctions/check">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>activityType</key>
+          <value>ExternalCall</value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+      <bpmn2:incoming>SeqFlow_BuildToCall</bpmn2:incoming>
+      <bpmn2:outgoing>SeqFlow_CallToBranch</bpmn2:outgoing>
+    </bpmn2:serviceTask>
+
+    <!-- Step 5: Branch on the verdict — was it a sanctions hit? -->
+    <bpmn2:exclusiveGateway id="Branch_OnHit" name="hit == true ?">
+      <bpmn2:incoming>SeqFlow_CallToBranch</bpmn2:incoming>
+      <bpmn2:outgoing>SeqFlow_BranchToWriteback</bpmn2:outgoing>
+      <bpmn2:outgoing>SeqFlow_BranchToEnd</bpmn2:outgoing>
+    </bpmn2:exclusiveGateway>
+
+    <!-- Step 6 (hit branch): Write a Z-flag back to the PO via OData. -->
+    <bpmn2:serviceTask id="HttpCall_Writeback" name="PATCH PO Z-flag">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>activityType</key>
+          <value>ExternalCall</value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+      <bpmn2:incoming>SeqFlow_BranchToWriteback</bpmn2:incoming>
+      <bpmn2:outgoing>SeqFlow_WritebackToTeams</bpmn2:outgoing>
+    </bpmn2:serviceTask>
+
+    <!-- Step 7 (hit branch): Notify AP via Microsoft Teams. -->
+    <bpmn2:serviceTask id="HttpCall_Teams" name="Notify AP via Teams">
+      <bpmn2:extensionElements>
+        <ifl:property>
+          <key>activityType</key>
+          <value>ExternalCall</value>
+        </ifl:property>
+      </bpmn2:extensionElements>
+      <bpmn2:incoming>SeqFlow_WritebackToTeams</bpmn2:incoming>
+      <bpmn2:outgoing>SeqFlow_TeamsToEnd</bpmn2:outgoing>
+    </bpmn2:serviceTask>
+
+    <bpmn2:endEvent id="EndEvent_1" name="End">
+      <bpmn2:incoming>SeqFlow_BranchToEnd</bpmn2:incoming>
+      <bpmn2:incoming>SeqFlow_TeamsToEnd</bpmn2:incoming>
+    </bpmn2:endEvent>
+
+    <!-- Sequence flow wiring -->
+    <bpmn2:sequenceFlow id="SeqFlow_StartToHeaders"
+                        sourceRef="StartEvent_1"
+                        targetRef="ContentMod_SetHeaders"/>
+    <bpmn2:sequenceFlow id="SeqFlow_HeadersToCapture"
+                        sourceRef="ContentMod_SetHeaders"
+                        targetRef="ContentMod_Capture"/>
+    <bpmn2:sequenceFlow id="SeqFlow_CaptureToBuild"
+                        sourceRef="ContentMod_Capture"
+                        targetRef="ContentMod_BuildQubitonRequest"/>
+    <bpmn2:sequenceFlow id="SeqFlow_BuildToCall"
+                        sourceRef="ContentMod_BuildQubitonRequest"
+                        targetRef="HttpCall_QubitOn"/>
+    <bpmn2:sequenceFlow id="SeqFlow_CallToBranch"
+                        sourceRef="HttpCall_QubitOn"
+                        targetRef="Branch_OnHit"/>
+    <bpmn2:sequenceFlow id="SeqFlow_BranchToWriteback"
+                        sourceRef="Branch_OnHit"
+                        targetRef="HttpCall_Writeback"
+                        name="hit==true">
+      <bpmn2:conditionExpression xsi:type="bpmn2:tFormalExpression">
+        ${in.body[hit]} == true
+      </bpmn2:conditionExpression>
+    </bpmn2:sequenceFlow>
+    <bpmn2:sequenceFlow id="SeqFlow_BranchToEnd"
+                        sourceRef="Branch_OnHit"
+                        targetRef="EndEvent_1"
+                        name="default"/>
+    <bpmn2:sequenceFlow id="SeqFlow_WritebackToTeams"
+                        sourceRef="HttpCall_Writeback"
+                        targetRef="HttpCall_Teams"/>
+    <bpmn2:sequenceFlow id="SeqFlow_TeamsToEnd"
+                        sourceRef="HttpCall_Teams"
+                        targetRef="EndEvent_1"/>
+
+  </bpmn2:process>
+
+  <!-- Empty processes for the participant placeholders. CPI requires
+       these to balance the BPMN graph but no logic lives here. -->
+  <bpmn2:process id="Process_Sender" name="Sender Process"/>
+  <bpmn2:process id="Process_Writeback" name="Writeback Process"/>
+  <bpmn2:process id="Process_Teams" name="Teams Process"/>
+
+</bpmn2:definitions>
