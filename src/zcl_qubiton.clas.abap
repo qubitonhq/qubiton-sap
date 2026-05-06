@@ -1440,9 +1440,14 @@ CLASS zcl_qubiton IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD build_entity_risk_body.
+    " Wire field is PascalCase 'CountryOfIncorporation' — pinned by
+    " [JsonPropertyName("CountryOfIncorporation")] on the API DTO, which
+    " overrides the global camelCase naming policy. The server is
+    " case-sensitive here, so the lowercase camelCase alias is silently
+    " dropped on deserialisation (no error, just a missing country).
     rv_json = build_json( VALUE #(
       ( name = 'companyName'            value = iv_company_name )
-      ( name = 'countryOfIncorporation' value = iv_country )
+      ( name = 'CountryOfIncorporation' value = iv_country )
       ( name = 'category'               value = iv_category )
       ( name = 'url'                    value = iv_url )
       ( name = 'businessEntityType'     value = iv_business_entity_type ) ) ).

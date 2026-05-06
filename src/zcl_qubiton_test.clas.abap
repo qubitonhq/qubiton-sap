@@ -848,8 +848,11 @@ CLASS zcl_qubiton_test IMPLEMENTATION.
       iv_business_entity_type = 'CORP' ).
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_json
-      exp = '*"companyName":*"countryOfIncorporation":"US"*"category":*"url":*"businessEntityType":*'
-      msg = 'assess_entity_risk must use countryOfIncorporation (not country)' ).
+      exp = '*"companyName":*"CountryOfIncorporation":"US"*"category":*"url":*"businessEntityType":*'
+      msg = 'assess_entity_risk must use CountryOfIncorporation (PascalCase) — pinned by [JsonPropertyName] on the API DTO; the lowercase camelCase alias is silently dropped' ).
+    cl_abap_unit_assert=>assert_false(
+      act = boolc( lv_json CS '"countryOfIncorporation":' )
+      msg = 'assess_entity_risk must NOT use the lowercase camelCase wire name (silently dropped by the server)' ).
   ENDMETHOD.
 
 
