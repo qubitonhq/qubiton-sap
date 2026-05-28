@@ -499,16 +499,17 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    " Convert the string form to integer. A non-numeric score (which
-    " the API should never return) is treated as "field present but
-    " unusable" — return ev_found = abap_true with ev_score = 0 so the
-    " comparison "ev_score = 100" fails closed.
+    " Convert the string form to integer. A non-numeric score (the
+    " API should not return one) is treated the same as a missing
+    " field so the caller's fail-closed branch surfaces a clearer
+    " message — "could not be verified" rather than the generic
+    " "validation failed - enter valid …" intended for score < 100.
     TRY.
         ev_score = ls_probe-score.
+        ev_found = abap_true.
       CATCH cx_sy_conversion_no_number.
-        ev_score = 0.
+        CLEAR ev_score.   " ev_found stays abap_false
     ENDTRY.
-    ev_found = abap_true.
   ENDMETHOD.
 
 
