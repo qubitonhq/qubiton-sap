@@ -100,10 +100,6 @@ DATA: lt_partner TYPE RANGE OF partner,
       ls_bank    TYPE ty_bank,
       gt_tax     TYPE TABLE OF ty_tax,
       ls_tax     TYPE ty_tax,
-      lv_result  TYPE c LENGTH 40,
-      lv_name    TYPE c LENGTH 20,
-      lv_value   TYPE c LENGTH 20,
-      lv_offset  TYPE i,
       lv_path    TYPE string.
 *----------------------------------------------------------------------*
 * Selection Screen

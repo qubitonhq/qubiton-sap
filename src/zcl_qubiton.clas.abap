@@ -106,15 +106,11 @@ public section.
   constants GC_ON_INVALID_STOP type CHAR1 value 'E' ##NO_TEXT.       " Block save when validation returns isValid=false
   constants GC_ON_INVALID_WARN type CHAR1 value 'W' ##NO_TEXT.       " Warn but allow save
   constants GC_ON_INVALID_SILENT type CHAR1 value 'S' ##NO_TEXT.       " Silent — caller checks result
-    " ── Message Class Constants (SE91: ZCL_QUBITON_MSG) ──────────────────
-    " GC_MSGID points at the broader runtime-message class
-    " (zcl_qubiton_msg.msag.xml, msgno 001–010+) used by log_api_call and
-    " the legacy BAdI/screen classes that reference it via GC_MSGID. The
-    " newer per-BAdI message class ZQUBITON (zqubiton.msag.xml, msgno
-    " 001–006) is referenced as a literal string from the new
-    " ZCL_IM_APEX_* BAdI implementations and does not flow through this
-    " constant. Both message classes coexist on this branch by design.
-  constants GC_MSGID type SYMSGID value 'ZCL_QUBITON_MSG' ##NO_TEXT.       " Message class for translatable messages
+    " ── Message Class Constant (SE91: ZQUBITON) ──────────────────────────
+    " ARBGB must match zqubiton.msag.xml. Msgnos 001-009 cover the BAdI
+    " return-row messages; msgno 010 is the BAL log entry written by
+    " LOG_API_CALL ("&1 &2 completed in &3 ms (HTTP &4)").
+  constants GC_MSGID type SYMSGID value 'ZQUBITON' ##NO_TEXT.       " Message class for translatable messages
     " ── BAL Log Object Constants (SLG0: ZQUBITON) ─────────────────────────
   constants GC_BAL_OBJECT type BALOBJ_D value 'ZQUBITON' ##NO_TEXT.
   constants GC_BAL_SUBOBJECT type BALSUBOBJ value 'ZAPI_CALL' ##NO_TEXT.
@@ -154,9 +150,7 @@ public section.
       !IV_POSTAL_CODE type STRING optional
       !IV_COMPANY_NAME type STRING optional
     returning
-      value(RV_JSON) type STRING
-    raising
-      CX_ROOT .
+      value(RV_JSON) type STRING .
   class-methods POST
     importing
       !IV_PATH type STRING default '/api/address/validate'
@@ -199,6 +193,25 @@ public section.
       !IV_ELAPSED type I
       !IV_MSGTYPE type SYMSGTY default 'I' .
   class-methods SAVE_LOG .
+  "! <p class="shorttext synchronized">Extract the top-level "score" field from a JSON response</p>
+  "!
+  "! Parses the API response and reads the top-level "score" field. Use
+  "! instead of FIND OFFSET on the raw JSON string — a substring scan
+  "! returns the first occurrence, which can be a nested "score" inside
+  "! a "detail" / "components" object, leading the BAdI to compare the
+  "! wrong number against 100.
+  "!
+  "! @parameter iv_json   | Raw JSON body returned by validate_*.
+  "! @parameter ev_found  | abap_true when the top-level "score" field
+  "!                       is present and parseable as an integer.
+  "! @parameter ev_score  | The score value (0..100). Only valid when
+  "!                       ev_found = abap_true.
+  class-methods EXTRACT_SCORE_FROM_JSON
+    importing
+      !IV_JSON type STRING
+    exporting
+      !EV_FOUND type ABAP_BOOL
+      !EV_SCORE type I .
   class-methods GET_BP_ADDRESS
     importing
       !IR_PARTNER type TR_PARTNER .
@@ -450,6 +463,52 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
       open_log( ).
     ENDIF.
 
+  ENDMETHOD.
+
+
+  METHOD extract_score_from_json.
+
+    " Parse the API response and read the top-level "score" field.
+    " Uses /ui2/cl_json so the lookup is structural: a "score" nested
+    " inside another object (e.g. {"detail":{"score":42},"score":100})
+    " can't shadow the top-level field. The probe structure is typed
+    " with score as STRING so we can tell an absent field apart from
+    " a present "score": 0 — both deserialize to ABAP 0 if typed as I.
+
+    CLEAR: ev_found, ev_score.
+
+    IF iv_json IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    DATA: BEGIN OF ls_probe,
+            score TYPE string,
+          END OF ls_probe.
+
+    TRY.
+        /ui2/cl_json=>deserialize(
+          EXPORTING json = iv_json
+          CHANGING  data = ls_probe ).
+      CATCH cx_root.
+        " Malformed or non-JSON response. Leave ev_found = abap_false
+        " so the caller treats it the same as "score field absent".
+        RETURN.
+    ENDTRY.
+
+    IF ls_probe-score IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    " Convert the string form to integer. A non-numeric score (which
+    " the API should never return) is treated as "field present but
+    " unusable" — return ev_found = abap_true with ev_score = 0 so the
+    " comparison "ev_score = 100" fails closed.
+    TRY.
+        ev_score = ls_probe-score.
+      CATCH cx_sy_conversion_no_number.
+        ev_score = 0.
+    ENDTRY.
+    ev_found = abap_true.
   ENDMETHOD.
 
 
