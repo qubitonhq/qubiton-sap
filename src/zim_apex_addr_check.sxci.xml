@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_SXCI" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <SXCI>
+    <IMPLEMENTATION_DATA>
+     <IMP_NAME>ZIM_APEX_ADDR_CHECK</IMP_NAME>
+     <TEXT>Apex Address Validation</TEXT>
+     <IMP_CLASS>ZCL_IM_APEX_ADDR_CHECK</IMP_CLASS>
+     <EXIT_NAME>BUPA_ADDR_CHECK</EXIT_NAME>
+     <INTER_NAME>IF_EX_BUPA_ADDR_CHECK</INTER_NAME>
+     <ACTIVE>X</ACTIVE>
+    </IMPLEMENTATION_DATA>
+   </SXCI>
+  </asx:values>
+ </asx:abap>
+</abapGit>

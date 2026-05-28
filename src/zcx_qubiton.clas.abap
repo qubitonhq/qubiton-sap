@@ -1,47 +1,36 @@
-"! <p class="shorttext synchronized">QubitOn API Exception</p>
-"! Exception raised when the QubitOn API call fails.
-CLASS zcx_qubiton DEFINITION
-  PUBLIC
-  INHERITING FROM cx_static_check
-  FINAL
-  CREATE PUBLIC.
+class ZCX_QUBITON definition
+  public
+  inheriting from CX_STATIC_CHECK
+  create public .
 
-  PUBLIC SECTION.
+public section.
 
-    INTERFACES if_t100_message.
+  interfaces IF_T100_MESSAGE .
+  interfaces IF_T100_DYN_MSG .
 
-    DATA http_status TYPE i READ-ONLY.
-    DATA error_text  TYPE string READ-ONLY.
-
-    METHODS constructor
-      IMPORTING
-        textid      LIKE if_t100_message=>t100key OPTIONAL
-        previous    TYPE REF TO cx_root OPTIONAL
-        http_status TYPE i DEFAULT 0
-        error_text  TYPE string OPTIONAL.
-
-    METHODS get_text REDEFINITION.
-
+  methods CONSTRUCTOR
+    importing
+      !TEXTID like IF_T100_MESSAGE=>T100KEY optional
+      !PREVIOUS like PREVIOUS optional .
+protected section.
+private section.
 ENDCLASS.
 
 
-CLASS zcx_qubiton IMPLEMENTATION.
 
-  METHOD constructor.
-    super->constructor( previous = previous ).
-    me->http_status = http_status.
-    me->error_text  = error_text.
-    IF textid IS SUPPLIED.
-      if_t100_message~t100key = textid.
-    ENDIF.
-  ENDMETHOD.
+CLASS ZCX_QUBITON IMPLEMENTATION.
 
-  METHOD get_text.
-    IF error_text IS NOT INITIAL.
-      result = error_text.
-    ELSE.
-      result = |QubitOn API error (HTTP { http_status })|.
-    ENDIF.
-  ENDMETHOD.
 
+  method CONSTRUCTOR.
+CALL METHOD SUPER->CONSTRUCTOR
+EXPORTING
+PREVIOUS = PREVIOUS
+.
+clear me->textid.
+if textid is initial.
+  IF_T100_MESSAGE~T100KEY = IF_T100_MESSAGE=>DEFAULT_TEXTID.
+else.
+  IF_T100_MESSAGE~T100KEY = TEXTID.
+endif.
+  endmethod.
 ENDCLASS.

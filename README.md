@@ -1,32 +1,27 @@
-# QubitOn API -- SAP S/4HANA Native Connector
+# QubitOn SAP S/4HANA Native Connector
 
-ABAP class for calling the **QubitOn API** from SAP S/4HANA, ECC, or BTP.
-Full API coverage with 42 methods across validation, compliance, risk, and more.
+ABAP class and integration suite for calling the **QubitOn API** from SAP S/4HANA, ECC, or BTP. Real-time validation, batch cleansing, and master-data BAdI integration for address, bank account, and tax verification.
 
 ## Table of Contents
 
 - [Why Use This Connector](#why-use-this-connector)
 - [How It Works](#how-it-works)
 - [Platform Compatibility](#platform-compatibility)
-- [API Coverage (42 methods)](#api-coverage-42-methods)
-- [MCP Protocol Support](#mcp-protocol-support)
+- [API Coverage (6 methods)](#api-coverage-6-methods)
 - [Quick Start](#quick-start)
 - [Installation](#installation)
-- [Documentation](#documentation)
-- [Other Integrations](#other-integrations)
-- [FAQ](#faq)
+- [SAP Integration Points](#sap-integration-points)
 - [License](#license)
 
 ## Why Use This Connector
 
 | Benefit | Description |
 |---------|-------------|
-| **Native SAP integration** | Pure ABAP — no middleware, no external runtimes, no Java stack. Runs inside the ABAP application server alongside your business logic. |
-| **Zero-code error handling** | Configure stop/warn/silent behavior via constructor parameters. SAP admins control what happens on API errors or validation failures — no TRY/CATCH needed for standard use. |
-| **Real-time and batch** | Use in BADIs, user exits, and screen PAI for real-time validation during data entry. Use in reports and BDCs for mass cleansing. Same class — flip `iv_keep_alive=abap_true` for batch connection reuse, `iv_on_invalid='S'` for silent mode. |
-| **Audit trail built in** | Every API call is logged to SAP Application Log (SLG1) with method, path, HTTP status, and elapsed time. Viewable via SLG1 — no custom logging code. |
-| **SAP authorization model** | Optional `ZQUBITON_API` authorization object with per-category activity values. Control who can validate vs. screen vs. look up, enforced by PFCG roles. |
-| **Translatable messages** | All user-facing messages use SE91 message class `ZCL_QUBITON_MSG` — translatable to any language via SE63. |
+| **Native SAP integration** | Pure ABAP -- no middleware, no external runtimes, no Java stack. Runs inside the ABAP application server alongside your business logic. |
+| **Predictable error surface** | The BAdI implementations (`ZCL_IM_APEX_ADDR_CHECK`, `ZCL_IM_APEX_BANK_CHECK`) append entries to `et_return` with message class `ZQUBITON`. Score = 100 → success (`type = 'S'`); score < 100 or no score field in the response → error (`type = 'E'`) and the BP save is blocked. |
+| **Real-time and batch** | BAdIs validate during Business Partner save (real-time). Report `ZAPEX_QUBITON_API` validates existing master data in bulk. Both paths share the same `ZCL_QUBITON` class — set `iv_log_enabled = abap_false` in the report for quiet batch runs. |
+| **Audit trail built in** | Every API call is logged to SAP Application Log (SLG1) with method, path, HTTP status, and elapsed time. Viewable via SLG1 -- no custom logging code. |
+| **ABAP types for BPP data** | Native `TY_ADRC`, `TY_BANK`, `TY_TAX` structures for direct mapping to Business Partner address, bank, and tax data. |
 | **abapGit deployable** | Full abapGit-compatible package structure. One-click import into any ABAP system. |
 | **No external dependencies** | Uses only `cl_http_client` and `if_http_client` (available since NW 7.0). No `/ui5/`, no CDS, no RAP, no oData. |
 
@@ -34,47 +29,48 @@ Full API coverage with 42 methods across validation, compliance, risk, and more.
 
 ```
 +-------------------------------------------------------------+
-|  SAP S/4HANA / ECC / BTP                                    |
-|                                                              |
-|  +--------------+    +------------------+                    |
-|  | Your Code    |--->| ZCL_QUBITON      |                    |
-|  | (BADI, exit, |    |                  |                    |
-|  |  report, CPI)|    | - build_json()   |---- HTTPS ---+    |
-|  +--------------+    | - send_request() |              |    |
-|                      | - parse_result() |              |    |
-|  +--------------+    | - log_api_call() |              |    |
-|  | SLG1 App Log |<---| - handle_result()|              |    |
-|  +--------------+    +------------------+              |    |
-|                                                        |    |
-|  +--------------+    +------------------+              |    |
-|  | PFCG Roles   |--->| ZQUBITON_API     |              |    |
-|  +--------------+    | (auth object)    |              |    |
-|                      +------------------+              |    |
-|  +--------------+                                      |    |
-|  | SM59 / BTP   |--- RFC Destination "QubitOn" ---+    |    |
-|  | Destination  |    (type G, SSL, port 443)      |    |    |
-|  +--------------+                                 |    |    |
-+---------------------------------------------------+----+----+
+| SAP S/4HANA / ECC / BTP                                     |
+|                                                             |
+|  +-------------------+  +------------------+               |
+|  | Your Code         |  | ZCL_QUBITON      |               |
+|  | (BAdI, exit,      |->|                  |               |
+|  |  report)          |  | - build_json()   |---- HTTPS ---+|
+|  +-------------------+  | - build_*_body() |               |
+|                         | - send_request() |               |
+|  +-------------------+  | - validate_*()   |               |
+|  | Business Partner  |  | - log_api_call() |               |
+|  | (BUPA)            |  +------------------+               |
+|  +-------------------+          |                          |
+|          ^                      v                          |
+|  +-------------------+  +------------------+               |
+|  | BAdI Implementations|<-| ZIM_*            |               |
+|  | (addr/bank/update)  |  | (SXCI BAdIs)     |               |
+|  +-------------------+  +------------------+               |
+|                                                             |
+|  +--------------+                                           |
+|  | SM59 / BTP   |--- RFC Destination "QUBITON" ---+        |
+|  | Destination  | (type G, SSL, port 443)          |        |
+|  +--------------+                                 |        |
++---------------------------------------------------|----+----+
                                                     |    |
                                                     v    v
-                                         +------------------+
-                                         | api.qubiton.com  |
-                                         | (QubitOn API)    |
-                                         +------------------+
+                                            +------------------+
+                                            | api.qubiton.com  |
+                                            | (QubitOn API)    |
+                                            +------------------+
 ```
 
-**Data flow**: Your ABAP code -> `ZCL_QUBITON` builds JSON -> sends HTTPS POST/GET via `cl_http_client` through an RFC destination -> receives JSON response -> optionally parses validity and issues SAP messages -> logs to BAL.
+**Data flow**: Your ABAP code → `ZCL_QUBITON` builds the JSON body via the per-endpoint `build_*_body` helpers → sends HTTPS POST via `cl_http_client` through the `QUBITON` RFC destination → receives JSON response → returns the raw JSON to the caller while writing an audit entry (HTTP status + elapsed time) to SLG1 under object `ZQUBITON`.
 
-### Common SAP Integration Points
+### Supported Integration Layers
 
-| Integration Point | Example | Recommended Config |
-|-------------------|---------|-------------------|
-| **Vendor master BADI** | Validate tax ID and bank account on save | `on_error='W'`, `on_invalid='E'` (block save on invalid) |
-| **Purchase order user exit** | Screen supplier against sanctions lists | `on_error='W'`, `on_invalid='E'` |
-| **Mass data report** | Cleanse 10,000 vendor addresses overnight | `on_error='S'`, `on_invalid='S'` (silent, check results) |
-| **Fiori app (OData)** | Real-time address validation in UI5 | Raw JSON mode, return to frontend |
-| **CPI iFlow** | Validate bank accounts from Ariba/Fieldglass | REST adapter to BTP destination |
-| **BDC / LSMW** | Validate during legacy data migration | Silent mode, log errors to ALV |
+| Integration Point | Class / Object | Description |
+|-------------------|--------------|-------------|
+| **Address Check BAdI** | `ZCL_IM_APEX_ADDR_CHECK` | `IF_EX_BUPA_ADDR_CHECK~CHECK` -- validates address on BP save |
+| **Bank Account Check BAdI** | `ZCL_IM_APEX_BANK_CHECK` | `IF_EX_BUPA_BANK_CHECK~CHECK` -- validates bank account on BP save |
+| **General Update BAdI** | `ZCL_IM_IMBP_GENERAL_UPDATE` | `IF_EX_BUPA_GENERAL_UPDATE~CHANGE_BEFORE_UPDATE` -- lifecycle validation |
+| **Further Checks** | `ZCL_IM_IM_BUPA_CHECKS` | `IF_EX_BUPA_FURTHER_CHECKS~CHECK_CENTRAL` -- extension point |
+| **Batch Report** | `ZAPEX_QUBITON_API` | ALV report for bulk validation of existing master data |
 
 ## Platform Compatibility
 
@@ -84,217 +80,131 @@ Full API coverage with 42 methods across validation, compliance, risk, and more.
 | **SAP S/4HANA Cloud** | Any | SAP BTP Destination service | ADT or gCTS |
 | **SAP ECC** | 6.0 EHP5+ | RFC destination (SM59 type G, SSL) | SE24 |
 | **SAP BTP ABAP Environment** | Any | Communication Arrangement / Destination | ADT |
-| **SAP CPI / Integration Suite** | Any | REST adapter with BTP destination | iFlow import |
 
-The class uses only standard ABAP APIs (`cl_http_client`, `if_http_client`) available on all platforms. No S/4HANA-specific APIs, no CDS views, no RAP dependencies.
+The class uses only standard ABAP APIs (`cl_http_client`, `if_http_client`) available on all platforms.
 
-**ABAP language level**: Compatible with ABAP 7.40+ (inline declarations, string templates). For older ECC systems on 7.02-7.31, replace `DATA(...)` inline declarations with explicit `DATA` statements.
+**ABAP language level**: Compatible with ABAP 7.40+ (inline declarations, string templates).
 
-## API Coverage (42 methods)
+## API Coverage (6 methods)
 
-| Category | Methods | Description |
-|----------|---------|-------------|
-| Address | `validate_address` | Postal address validation (249 countries) |
-| Tax | `validate_tax`, `validate_tax_format` | Tax ID validation with live checks + format/checksum |
-| Bank | `validate_bank_account`, `validate_bank_pro` | Bank validation + premium ownership verification |
-| Email & Phone | `validate_email`, `validate_phone` | Deliverability and carrier validation |
-| Business Registration | `lookup_business_registration` | Official registration records |
-| Peppol | `validate_peppol` | Peppol participant ID validation (70+ ICD schemes) |
-| Sanctions & Compliance | `check_sanctions`, `screen_pep`, `check_directors` | OFAC/EU/UN screening, PEP, disqualified directors |
-| EPA | `check_epa_prosecution`, `lookup_epa_prosecution` | EPA criminal prosecution records |
-| Healthcare | `check_healthcare_exclusion`, `lookup_healthcare_exclusion` | Provider exclusion lists |
-| Risk & Financial | `check_bankruptcy_risk`, `lookup_credit_score`, `lookup_fail_rate`, `assess_entity_risk`, `lookup_credit_analysis` | Bankruptcy, credit, fail rate, fraud risk |
-| ESG & Cybersecurity | `lookup_esg_score`, `domain_security_report`, `check_ip_quality` | ESG scores, domain security, IP fraud |
-| Corporate Structure | `lookup_beneficial_ownership`, `lookup_corporate_hierarchy`, `lookup_duns`, `lookup_hierarchy` | UBO, hierarchy, DUNS |
-| Industry | `validate_npi`, `validate_medpass`, `lookup_dot_carrier`, `validate_india_identity` | Healthcare NPI, Medpass, DOT carrier, India ID |
-| Certification | `validate_certification`, `lookup_certification` | Diversity certifications (MBE, WBE, DBE) |
-| Classification | `lookup_business_classification` | NAICS/SIC codes |
-| Financial Ops | `analyze_payment_terms`, `lookup_exchange_rates` | Payment optimization, FX rates |
-| Supplier | `lookup_ariba_supplier`, `validate_ariba_supplier` | SAP Ariba supplier profiles |
-| Gender | `identify_gender` | Name-based gender prediction |
-| Reference | `get_supported_tax_formats`, `get_peppol_schemes` | Supported countries/schemes |
+| Category | Method | Description |
+|----------|--------|-------------|
+| Address | `validate_address` | Postal address validation for 249 countries |
+| Bank | `validate_bank_pro` | Bank account validation + premium ownership verification |
+| Tax | `validate_tax` | Tax ID validation with live checks and format verification |
+| Data Access | `get_bank_details` | Retrieve bank details from Business Partner |
+| Data Access | `get_bp_address` | Retrieve address from Business Partner |
+| Data Access | `get_tax_details` | Retrieve tax numbers from Business Partner |
 
-## MCP Protocol Support
+> **Note**: This branch (`SAP-S4`) contains a focused subset of the QubitOn API surface scoped to Business Partner validation. The full upstream connector ships 42+ methods across compliance, risk, financial, and ESG categories. See [qubiton-sap/main](https://github.com/qubitonhq/qubiton-sap) for the complete feature set.
 
-This API is available as a native [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server.
+### ABAP Types
 
-### Tools (37), Prompts (20), Resources (7)
+```abap
+" Address structure -- maps to ADRC fields + score/validation result
+DATA(ls_addr) = VALUE zcl_qubiton=>ty_adrc(
+  country    = 'US'
+  street     = '123 Main St'
+  city1      = 'Springfield'
+  post_code1 = '62701'
+  region     = 'IL'
+  name1      = 'Apex Analytix, LLC'
+).
 
-| Category | Count | Description |
-|----------|-------|-------------|
-| MCP Tools | 37 | 1:1 mapped to API endpoints — same auth, rate limits, and plan access |
-| MCP Prompts | 20 | Multi-tool workflow templates (onboarding, compliance, risk, payment) |
-| MCP Resources | 7 | Reference datasets (tool inventory, risk categories, country coverage) |
+" Bank structure -- maps to BUPA bank data + score/validation result
+DATA(ls_bank) = VALUE zcl_qubiton=>ty_bank(
+  banks = 'US'
+  bankl = '021000021'
+  iban  = 'US64SVBKUS6S3300958879'
+).
 
-Prompts may be plan-gated. See [Pricing](https://www.qubiton.com/pricing) for details.
-
-- [MCP Manifest](https://mcp.qubiton.com/.well-known/mcp.json)
-- [Resource Content](https://mcp.qubiton.com/api/portal/mcp/resources/{name})
+" Tax structure -- maps to BUPA tax data + score/validation result
+DATA(ls_tax) = VALUE zcl_qubiton=>ty_tax(
+  taxtype = 'US01'
+  taxnum  = '12-3456789'
+  country = 'US'
+).
+```
 
 ## Quick Start
 
-```abap
-" 1. Create instance with your API key
-DATA(lo_api) = NEW zcl_qubiton( iv_apikey = 'your-api-key' ).
+The public surface of `ZCL_QUBITON` is exposed as `class-methods` (static), so
+calls do not require instantiation. The class-data API key can be set once
+at session start (via `CONSTRUCTOR` or by direct assignment) and reused
+across every validate call in the same work process.
 
-" 2. Validate an address
-TRY.
-    DATA(lv_result) = lo_api->validate_address(
-      iv_address_line1 = '123 Main St'
-      iv_city          = 'Springfield'
-      iv_state         = 'IL'
-      iv_postal_code   = '62701'
-      iv_country       = 'US' ).
-    WRITE: / lv_result.
-  CATCH zcx_qubiton INTO DATA(lx_err).
-    WRITE: / 'Error:', lx_err->get_text( ).
-ENDTRY.
+```abap
+" 1. Set the API key once. Either pass it through CONSTRUCTOR ...
+NEW zcl_qubiton( iv_apikey = 'your-api-key' ).
+
+"    ... or assign the class-data directly when you don't need to
+"    construct an instance (BAdI implementations typically do this
+"    in their first call):
+zcl_qubiton=>mv_apikey = 'your-api-key'.
+
+" 2. Validate an address — static call, returns the raw JSON string.
+DATA(lv_result) = zcl_qubiton=>validate_address(
+  iv_address_line1 = '123 Main St'
+  iv_city          = 'Springfield'
+  iv_state         = 'IL'
+  iv_postal_code   = '62701'
+  iv_country       = 'US'
+).
+WRITE: / lv_result.
+
+" 3. Every call writes an audit entry to SLG1 with HTTP status and
+"    elapsed time. View via transaction SLG1, object ZQUBITON.
 ```
 
-Get your free API key at [www.qubiton.com](https://www.qubiton.com/auth/register).
+The CONSTRUCTOR accepts:
+
+| Parameter | Type | Default | Purpose |
+|-----------|------|---------|---------|
+| `iv_apikey` | `string` | empty | API key (set into `mv_apikey` class-data) |
+| `iv_timeout` | `i` | `30` | HTTP request timeout in seconds |
+| `iv_log_enabled` | `abap_bool` | `'X'` | Set to `abap_false` to suppress SLG1 logging |
+
+The class is `final` and exposes only static methods after construction, so
+you don't need to keep the reference around — calls go through the class
+name (`zcl_qubiton=>...`).
+
+Get your API key at [www.qubiton.com](https://www.qubiton.com/auth/register).
 
 ## Installation
 
 ### abapGit (Recommended)
 
-[abapGit](https://abapGit.org) is the de facto package manager for ABAP open source.
+[abapGit](https://abapGit.org) is the standard package manager for ABAP open source.
 
 1. Open transaction **ZABAPGIT** (standalone) or **SE38 -> ZABAPGIT_STANDALONE**.
 2. Click **+ Online** and enter the repository URL:
    ```
    https://github.com/qubitonhq/qubiton-sap.git
    ```
-3. Select a target package (e.g., `ZQUBITON`) and click **Pull**.
-4. Activate all imported objects.
-
-This imports all classes, message class, config tables, authorization object, and application log object in one step.
+3. Switch to the **SAP-S4** branch and pull.
+4. Select a target package (e.g., `ZQUBITON`) and click **Pull**.
+5. Activate all imported objects. Activate BAdI implementations via **SE19** (`ZIM_APEX_ADDR_CHECK`, `ZIM_APEX_BANK_CHECK`, `ZIMBP_GENERAL_UPDATE`).
 
 ### Manual (SE24)
 
-1. Download the latest [release](https://github.com/qubitonhq/qubiton-sap/releases).
-2. Create each class in **SE24** using the ABAP source files from the `src/` directory, in dependency order:
-   - `ZCX_QUBITON` — Exception class (`src/zcx_qubiton.clas.abap`)
-   - `ZCL_QUBITON` — Core API client (`src/zcl_qubiton.clas.abap`)
-   - `ZCL_QUBITON_SCREEN` — Screen enhancement orchestrator (`src/zcl_qubiton_screen.clas.abap`)
-   - `ZCL_QUBITON_BADI_VENDOR` — Vendor BAdI (`src/zcl_qubiton_badi_vendor.clas.abap`)
-   - `ZCL_QUBITON_BADI_CUSTOMER` — Customer BAdI (`src/zcl_qubiton_badi_customer.clas.abap`)
-   - `ZCL_QUBITON_BADI_BP` — Business Partner BAdI (`src/zcl_qubiton_badi_bp.clas.abap`)
-3. Create message class `ZCL_QUBITON_MSG` in **SE91**, config tables in **SE11**, auth object in **SU21**.
+1. Create the exception class `ZCX_QUBITON` from `src/zcx_qubiton.clas.abap`.
+2. Create the core class `ZCL_QUBITON` from `src/zcl_qubiton.clas.abap`.
+3. Create BAdI implementation classes:
+   - `ZCL_IM_APEX_ADDR_CHECK` -- `src/zcl_im_apex_addr_check.clas.abap`
+   - `ZCL_IM_APEX_BANK_CHECK` -- `src/zcl_im_apex_bank_check.clas.abap`
+   - `ZCL_IM_IMBP_GENERAL_UPDATE` -- `src/zcl_im_imbp_general_update.clas.abap`
+4. Create enhancement projects via **SE19** and activate BAdIs.
+5. Create report `ZAPEX_QUBITON_API` from `src/zapex_qubiton_api.prog.abap`.
 
-### ADT (Eclipse)
+## SAP Integration Points
 
-1. In Eclipse with ADT, open **Window > Show View > Other > abapGit Repositories**.
-2. Click **+** and enter `https://github.com/qubitonhq/qubiton-sap.git`.
-3. Select target package and pull.
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [Setup & Connectivity](docs/setup.md) | API key, BTP destination, RFC destination (SM59), CPI iFlow |
-| [Configuration](docs/configuration.md) | Constructor params, error modes, handle_result, real-time vs. batch, JSON parsing |
-| [Usage Examples](docs/examples.md) | ABAP code examples for all 42 API methods |
-| [Screen Enhancements](docs/screen-enhancements.md) | Master-data BAdIs (XK01/XK02, FK01/FK02, BP), config table (SM30), tax auto-detection, bank field mapping |
-| **[Transaction Validation](docs/transaction-validation.md)** | **Inline + batch validation on transactional documents — PO (ME21N), invoice (MIRO), payment (F-58), payment proposal (F110). SWIE workflow events, BRF+ rule integration, BTE function-module exits. Cloud Public Edition patterns.** |
-| [Authorization & Logging](docs/authorization.md) | ZQUBITON_API auth object, SLG1 application logging |
-| [SAP Certification](docs/sap-certification.md) | ICC readiness, marketplace publishing, object inventory, complete setup steps |
-
-## Other Integrations
-
-QubitOn provides native connectors and SDKs for other platforms:
-
-| Connector | Platform | Language | Repo |
-|-----------|----------|----------|------|
-| **Go SDK** | Any platform | Go | [qubiton-go](https://github.com/qubitonhq/qubiton-go) |
-| **Oracle** | Oracle DB 11g+, EBS, Fusion | PL/SQL | [qubiton-oracle](https://github.com/qubitonhq/qubiton-oracle) |
-| **NetSuite** | All NetSuite editions | SuiteScript 2.1 | [qubiton-netsuite](https://github.com/qubitonhq/qubiton-netsuite) |
-| **QuickBooks Online** | QuickBooks Online | TypeScript | [qubiton-quickbooks](https://github.com/qubitonhq/qubiton-quickbooks) |
-
-Plus 30+ pre-built integrations for Salesforce, HubSpot, Snowflake, Databricks, Zapier, Make, and more at [www.qubiton.com/integrations](https://www.qubiton.com/integrations).
-
-## FAQ
-
-### Does it support real-time and batch processing?
-
-Yes — same `ZCL_QUBITON` class, different config. For real-time, use one of the three pre-built BAdIs (`ZCL_QUBITON_BADI_VENDOR`, `..._CUSTOMER`, `..._BP`) which hook into XK01/XK02/FK01/FK02 (and BP) save events and can block the save when validation fails. For batch (mass cleansing reports, BDC, LSMW), instantiate the class with `iv_keep_alive = abap_true` for HTTP connection reuse across thousands of records and `iv_on_invalid = 'S'` for silent mode where the report checks results itself instead of issuing user messages.
-
-See [docs/configuration.md](docs/configuration.md) for the full constructor parameter list.
-
-### Can it run during transactional document entry (PO, invoice, payment)?
-
-Yes — alongside the master-data BAdIs (XK01/XK02, FK01/FK02, BP), the connector now ships transactional BAdIs that fire on PO save (`ME_PROCESS_PO_CUST`), invoice posting (`INVOICE_UPDATE`), and payment release. Both **inline** (real-time block / warn during entry) and **batch** (overnight sweep over open documents) are supported, same `ZCL_QUBITON` class with different config flags.
-
-A **master kill switch** in `ZQUBITON_CONFIG.TXN_VALIDATION_ENABLED` lets admins turn the entire transactional layer on/off in seconds without transports. Per-transaction granularity via `ZQUBITON_SCREEN_CFG`.
-
-The BAdIs work hand-in-hand with three new integration helpers:
-
-- **`ZCL_QUBITON_WORKFLOW`** raises SAP Business Workflow events (SWIE) so a workflow template can route the document to an approver instead of hard-blocking the user
-- **`ZCL_QUBITON_BRFPLUS`** delegates the block / warn / route / silent decision to a customer-maintained BRF+ application — so non-developers can tune policy
-- **`Z_QUBITON_BTE_*`** function-module reference templates for FIBF (BTE) registration where BAdIs aren't available (older ECC, FI events without BAdI coverage)
-
-For S/4HANA Cloud Public Edition, three integration patterns are documented (Integration Suite iFlows, released cloud BAdIs, BTP side-by-side extensions). See [docs/transaction-validation.md](docs/transaction-validation.md) for the full guide.
-
-### How customizable is the workflow integration?
-
-Two layers: config-driven at runtime, plus open extension points for deeper customization.
-
-- **Configuration (no code)**: SM30 tables `ZQUBITON_CONFIG` and `ZQUBITON_SCREEN_CFG` control which validators run on save and how SAP fields map to API parameters. Per-call result policy is parameterised — `'E'` block save, `'W'` warn but allow, `'S'` silent (caller checks result). Same three modes apply to API errors so a transient network outage can soft-warn instead of blocking the user.
-- **Extension (small ABAP)**: The three BAdI implementations are open extension points — copy them into your own Z-class and add custom field mapping, conditional skip logic, or downstream actions (workflow trigger, ALV log, IDoc post-processing). The shared `ZCL_QUBITON_SCREEN->validate_vendor_all()` orchestrator can also be called directly from any user exit, BTE, or report.
-
-See [docs/screen-enhancements.md](docs/screen-enhancements.md) for BAdI activation steps and config table fields.
-
-### What happens if `api.qubiton.com` is unreachable?
-
-The connector degrades by config. With `iv_on_error = 'W'` (default), the user sees a warning message and the transaction continues — vendor master save proceeds without validation. With `iv_on_error = 'S'`, no message is issued and the failure is logged silently to SLG1. Set `iv_on_error = 'E'` only if validation is mandatory and you'd rather block the save than risk an unvalidated record.
-
-### How is access controlled?
-
-Two mechanisms. The optional ABAP authorization object `ZQUBITON_API` (PFCG-managed) gates which user roles can call which validation categories — validate vs. screen vs. lookup. Underneath, the QubitOn API key itself is plan-gated; endpoint access depends on subscription tier.
-
-### Where's the audit trail?
-
-Every API call is logged to SAP Application Log (SLG1) under object `ZQUBITON`, subobject `ZAPI_CALL`. Each entry captures method name, endpoint path, HTTP status, elapsed time, and the user/transaction context. View via SLG1 transaction or query table `BAL_HDR` directly. No custom logging code required.
-
-### How do I configure SSL trust for `api.qubiton.com` in STRUST?
-
-`api.qubiton.com` uses Let's Encrypt certificates which rotate every ~90 days. To avoid re-importing the leaf certificate every quarter, import the **Let's Encrypt CA chain** into STRUST once — ISRG Root X1 (root) and the active intermediate (R10/R11). Both are stable for years. Once the chain is trusted, every leaf rotation is transparent and no manual update is needed.
-
-Steps:
-
-1. Download the root and intermediate from [letsencrypt.org/certificates/](https://letsencrypt.org/certificates/) (use the `.der` or `.pem` files, not a browser-exported leaf cert)
-2. STRUST → SSL Client (Anonymous) → Import Certificate → select each file → Add to Certificate List → Save
-3. Restart ICM (`SMICM` → Administration → ICM → Exit Soft Global)
-
-This is the same pattern SAP shops use to trust Salesforce, AWS, Ariba, and any other public HTTPS endpoint. Trust the CA, not the leaf.
-
-### What's the per-call latency? Will it slow down vendor save?
-
-Typical end-to-end roundtrip is 200-500 ms (HTTPS POST + JSON parse + API processing + return), plus ~10-20 ms ABAP overhead inside the BAdI. For batch jobs, set `iv_keep_alive = abap_true` to reuse the HTTPS connection across calls — eliminates the TLS handshake (~100 ms saved per record after the first). For very large batches (10K+ records), call the API in groups of 50-100 records using the bulk endpoints where available (`validate_address` accepts an array via the bulk variant).
-
-If validation latency is unacceptable for interactive transactions, use `iv_on_error = 'W'` and run validation asynchronously via a background job (e.g., scheduled hourly batch over recent vendor master changes via `LFA1.UPDAT`).
-
-### How do I transport SM30 config from DEV to QAS to PRD?
-
-Tables `ZQUBITON_CONFIG` and `ZQUBITON_SCREEN_CFG` are delivered as customizing tables (delivery class C). When you maintain entries via SM30, SAP prompts for a customizing transport request — record entries on a customizing request and release through the standard CTS pipeline (DEV → QAS → PRD).
-
-The class itself, BAdI implementations, message class, auth object, and SLG application log object are workbench objects (delivery class A) — recorded on workbench transports during abapGit pull or SE24/SE19 changes.
-
-If you've cloned the BAdIs into your own namespace (recommended for production), record those Z-classes on workbench requests too.
-
-### Where is data sent? Is it logged with PII?
-
-Every API call goes to `https://api.qubiton.com` (TLS 1.2+, US/EU regions depending on subscription). The connector sends only the fields required for the specific validation — vendor name + tax ID for tax validation, account number + bank routing for bank validation, etc. SLG1 logs do not include request/response payloads by default; only method, path, HTTP status, and elapsed time. If you need full payload logging for debugging, set `iv_log_enabled = abap_true` and review the BAL configuration in [docs/authorization.md](docs/authorization.md).
-
-For GDPR and data residency: data sent to QubitOn is processed under our [Privacy Policy](https://www.apexanalytix.com/privacy-policy/).
-
-### Does it work in S/4HANA Public Cloud (RISE / Cloud Public Edition)?
-
-Yes. Configure connectivity via the SAP BTP Destination service rather than SM59 (which isn't available in Cloud Public Edition). Create an HTTP destination named `QubitOn` pointing at `https://api.qubiton.com` with the API key in a `Authorization: Bearer <key>` header property. The connector picks up the destination by name regardless of whether it resolves to SM59 (on-prem) or BTP (cloud).
-
-The BAdI implementations work unchanged on Cloud Public Edition — `IF_EX_VENDOR_ADD_DATA_CS` and equivalents are released cloud-compatible BAdIs. Custom Z-extensions need to be deployed via gCTS or ADT (no SE19 in cloud).
-
-See [docs/setup.md](docs/setup.md) for BTP destination setup.
+| Integration Point | Example | Notes |
+|-------------------|---------|-------|
+| **Business Partner create/change (BP)** | Real-time address validation during BP save | Wired through `ZCL_IM_APEX_ADDR_CHECK` (BAdI `BUPA_ADDR_CHECK`) — fail-closed: score < 100 or no score in response blocks the save with message `ZQUBITON-001`. |
+| **Vendor master (XK01/XK02)** | Bank account + tax number check on vendor save | `ZCL_IM_APEX_BANK_CHECK` (BAdI `BUPA_BANK_CHECK`) calls `validate_bank_pro`, then `validate_tax` if a tax record exists for the partner. |
+| **Customer master update** | Tax number format check | Same BAdI path as vendor master, gated by activity `'02'`. |
+| **Batch data cleanse** | Validate existing BP records overnight | `ZAPEX_QUBITON_API` ALV report. Select by partner range / created-on / role, choose Address / Bank / Tax mode, run interactively or via SM36 batch job. |
 
 ## License
 
-[MIT](LICENSE) -- Copyright (c) 2026 apexanalytix
+[MIT](LICENSE) -- Copyright (c) 2026 Apex Analytix, LLC

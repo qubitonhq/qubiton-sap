@@ -10,8 +10,8 @@
 #
 # Coverage: fixes ~50% of abaplint noise on this connector. The rest
 # (BAdI interfaces, DDIC tables, FI function modules) only resolve on
-# a real SAP system. See docs/transaction-validation.md for the full
-# verification workflow.
+# a real SAP system — run abapGit import into DEV and activate via SE19
+# to complete verification.
 #
 # Usage:
 #   ./scripts/lint.sh           # full lint run
