@@ -1,16 +1,92 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <abapGit version="v1.0.0" serializer="LCL_OBJECT_CLAS" serializer_version="v1.0.0">
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <VSEOCLASS>
     <CLSNAME>ZCL_QUBITON</CLSNAME>
     <LANGU>E</LANGU>
-    <DESCRIPT>QubitOn API Client</DESCRIPT>
+    <DESCRIPT>Qubiton Class</DESCRIPT>
     <STATE>1</STATE>
     <CLSCCINCL>X</CLSCCINCL>
     <FIXPT>X</FIXPT>
     <UNICODE>X</UNICODE>
    </VSEOCLASS>
+   <DESCRIPTIONS>
+    <SEOCOMPOTX>
+     <CMPNAME>APPLICATION_LOG</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Application log</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>BUILD_ADDRESS_BODY</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>build address body</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>BUILD_JSON</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>build json</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>GET_BANK_DETAILS</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Read bank details</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>GET_BP_ADDRESS</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Read address details</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>GET_TAX_DETAILS</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Read tax details</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>OPEN_LOG</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Open log</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>POST</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Post</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>SEND_REQUEST</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>API call</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>VALIDATE_ADDRESS</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Validate Address</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>VALIDATE_BANK_PRO</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Validate bank</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>VALIDATE_TAX</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Validate Tax</DESCRIPT>
+    </SEOCOMPOTX>
+   </DESCRIPTIONS>
+   <DESCRIPTIONS_SUB>
+    <SEOSUBCOTX>
+     <CMPNAME>APPLICATION_LOG</CMPNAME>
+     <SCONAME>IV_PARTNER</SCONAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Partner number</DESCRIPT>
+    </SEOSUBCOTX>
+    <SEOSUBCOTX>
+     <CMPNAME>LOG_API_CALL</CMPNAME>
+     <SCONAME>IV_MSGTYPE</SCONAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Message Type</DESCRIPT>
+    </SEOSUBCOTX>
+   </DESCRIPTIONS_SUB>
   </asx:values>
  </asx:abap>
 </abapGit>

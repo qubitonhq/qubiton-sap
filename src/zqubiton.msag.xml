@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_MSAG" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <T100A>
+    <ARBGB>ZQUBITON</ARBGB>
+    <MASTERLANG>E</MASTERLANG>
+    <STEXT>QUBITON Message Class</STEXT>
+   </T100A>
+   <T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZQUBITON</ARBGB>
+     <MSGNR>001</MSGNR>
+     <TEXT>QubitOn Address Validation Failed - Enter Valid Address</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZQUBITON</ARBGB>
+     <MSGNR>002</MSGNR>
+     <TEXT>QubitOn Address Validation Passed</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZQUBITON</ARBGB>
+     <MSGNR>003</MSGNR>
+     <TEXT>QubitOn Bank Validation Failed - Enter Valid Bank Details</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZQUBITON</ARBGB>
+     <MSGNR>004</MSGNR>
+     <TEXT>QubitOn Bank Validation Passed</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZQUBITON</ARBGB>
+     <MSGNR>005</MSGNR>
+     <TEXT>QubitOn Tax Validation Failed - Enter Valid Tax Details</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZQUBITON</ARBGB>
+     <MSGNR>006</MSGNR>
+     <TEXT>QubitOn Tax Validation Passed</TEXT>
+    </T100>
+   </T100>
+  </asx:values>
+ </asx:abap>
+</abapGit>

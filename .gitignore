@@ -1,19 +1,22 @@
-# macOS
+# Environment variables and secrets
+.env
+*.env
+
+# OS files
 .DS_Store
+Thumbs.db
+desktop.ini
 
-# IDE
-.project
-.settings/
-.metadata
-.adt/
+# Editor and IDE files
+.vscode/
+.idea/
+*.iml
 
-# ABAP
-*.bak
+# Logs
+*.log
+logs/
+
+# Temporary files
 *.tmp
-
-# Eclipse ADT
-.buildpath
-.classpath
-
-# abaplint dependency cache (cloned by `npm run lint:setup` or CI; not committed)
-.deps/
+*.temp
+*~
