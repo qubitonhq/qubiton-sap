@@ -120,7 +120,7 @@ CLASS ZCL_IM_APEX_BANK_CHECK IMPLEMENTATION.
           ls_return-id      = 'ZQUBITON'.
           ls_return-number  = '003'.
           ls_return-type    = 'E'.
-          ls_return-message = 'QubitOn bank validation could not be verified — see SLG1 / ZQUBITON.'.
+          ls_return-message = 'QubitOn bank validation could not be verified - see SLG1 / ZQUBITON.'.
           APPEND ls_return TO et_return.
           lv_errflg = 'X'.
         ENDIF.
@@ -193,7 +193,7 @@ CLASS ZCL_IM_APEX_BANK_CHECK IMPLEMENTATION.
             ls_return-id      = 'ZQUBITON'.
             ls_return-number  = '005'.
             ls_return-type    = 'E'.
-            ls_return-message = 'QubitOn tax validation could not be verified — see SLG1 / ZQUBITON.'.
+            ls_return-message = 'QubitOn tax validation could not be verified - see SLG1 / ZQUBITON.'.
             APPEND ls_return TO et_return.
           ENDIF.
         ENDIF.

@@ -82,7 +82,13 @@ public section.
   types:
     tt_result TYPE STANDARD TABLE OF ty_result WITH EMPTY KEY .
 
-  class-data MV_TIMEOUT type I .
+    " Default HTTP request timeout in seconds. Class-method callers
+    " (BAdI implementations and ZAPEX_QUBITON_API report) skip
+    " CONSTRUCTOR, so without a class-data default this would stay 0 —
+    " IF_HTTP_CLIENT~SEND treats 0 as "wait forever", which would freeze
+    " the calling work process if the API stops responding. 30s matches
+    " the CONSTRUCTOR's iv_timeout default.
+  class-data MV_TIMEOUT type I value 30 ##NO_TEXT.
     " API key — set at runtime via CONSTRUCTOR or by direct assignment
     " before the first call. Default is empty; an unset key causes the
     " API to return 401, which is logged to SLG1 and surfaced to the
@@ -744,6 +750,11 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
       IF sy-subrc <> 0 OR lo_client IS NOT BOUND.
         log_api_call( iv_method = iv_method iv_path = iv_path iv_status = 0 iv_elapsed = 0 iv_msgtype = 'E' ).
         save_log( ).
+        " Return early — without lo_client the subsequent set_request_uri /
+        " send / receive calls would raise CX_SY_REF_IS_INITIAL. The caller
+        " receives an empty rv_json; downstream BAdI code treats an empty
+        " response as "score not found" and fails closed.
+        RETURN.
 *        RAISE EXCEPTION TYPE zcx_qubiton
 *          EXPORTING
 *            error_text = |Failed to create HTTP client for destination "{ mv_destination }" (sy-subrc={ sy-subrc })|.
@@ -803,9 +814,13 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
       lo_client->close( ).
       CLEAR mo_client.
       GET RUN TIME FIELD lv_end.
-      lv_elapsed = ( lv_end - lv_start ) / 1000. " microseconds → milliseconds
+      lv_elapsed = ( lv_end - lv_start ) / 1000. " microseconds -> milliseconds
       log_api_call( iv_method = iv_method iv_path = iv_path iv_status = 0 iv_elapsed = lv_elapsed iv_msgtype = 'E' ).
       save_log( ).
+      " Return early — once the client is closed and cleared, the
+      " subsequent receive() / get_status() / get_cdata() calls would
+      " raise CX_SY_REF_IS_INITIAL. The caller gets an empty rv_json.
+      RETURN.
 *      RAISE EXCEPTION TYPE zcx_qubiton
 *        EXPORTING
 *          error_text = |{ iv_method } { iv_path }: send failed (sy-subrc={ lv_subrc_send })|.
@@ -829,6 +844,9 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
       lv_elapsed = ( lv_end - lv_start ) / 1000.
       log_api_call( iv_method = iv_method iv_path = iv_path iv_status = 0 iv_elapsed = lv_elapsed iv_msgtype = 'E' ).
       save_log( ).
+      " Return early — after close(), get_status() / get_cdata() on the
+      " response object would raise CX_SY_REF_IS_INITIAL.
+      RETURN.
 *      RAISE EXCEPTION TYPE zcx_qubiton
 *        EXPORTING
 *          error_text = |{ iv_method } { iv_path }: receive failed (sy-subrc={ lv_subrc_recv })|.
@@ -859,10 +877,13 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
 *        EXPORTING
 *          http_status = lv_status
 *          error_text  = |{ iv_method } { iv_path }: HTTP { lv_status } { lv_reason }|.
+    ELSE.
+      " Success — log informational. Wrapped in ELSE so a non-2xx response
+      " emits a single 'E' entry rather than a paired 'E' + 'I' (the latter
+      " would read "completed in X ms (HTTP 5xx)" and contradict the
+      " preceding error log).
+      log_api_call( iv_method = iv_method iv_path = iv_path iv_status = lv_status iv_elapsed = lv_elapsed iv_msgtype = 'I' ).
     ENDIF.
-
-    " Success — log informational
-    log_api_call( iv_method = iv_method iv_path = iv_path iv_status = lv_status iv_elapsed = lv_elapsed iv_msgtype = 'I' ).
 
     " Persist log entries after each call (ensures SLG1 visibility)
     save_log( ).

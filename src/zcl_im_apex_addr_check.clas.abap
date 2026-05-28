@@ -88,7 +88,7 @@ CLASS ZCL_IM_APEX_ADDR_CHECK IMPLEMENTATION.
         ls_return-id      = 'ZQUBITON'.
         ls_return-number  = '001'.
         ls_return-type    = 'E'.
-        ls_return-message = 'QubitOn address validation could not be verified — check SLG1 / ZQUBITON for the API response.'.
+        ls_return-message = 'QubitOn address validation could not be verified - see SLG1 / ZQUBITON for the API response.'.
         APPEND ls_return TO et_return.
       ENDIF.
     ENDIF.
