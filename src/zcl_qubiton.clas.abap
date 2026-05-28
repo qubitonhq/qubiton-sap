@@ -100,11 +100,15 @@ public section.
   constants GC_ON_INVALID_STOP type CHAR1 value 'E' ##NO_TEXT.       " Block save when validation returns isValid=false
   constants GC_ON_INVALID_WARN type CHAR1 value 'W' ##NO_TEXT.       " Warn but allow save
   constants GC_ON_INVALID_SILENT type CHAR1 value 'S' ##NO_TEXT.       " Silent — caller checks result
-    " ── Message Class Constants (SE91: ZQUBITON) ─────────────────────────
-    " ARBGB must match the .msag.xml file shipped with the package
-    " (zqubiton.msag.xml). Changing one without the other will cause
-    " log_api_call() to raise "unknown message id" at runtime.
-  constants GC_MSGID type SYMSGID value 'ZQUBITON' ##NO_TEXT.       " Message class for translatable messages
+    " ── Message Class Constants (SE91: ZCL_QUBITON_MSG) ──────────────────
+    " GC_MSGID points at the broader runtime-message class
+    " (zcl_qubiton_msg.msag.xml, msgno 001–010+) used by log_api_call and
+    " the legacy BAdI/screen classes that reference it via GC_MSGID. The
+    " newer per-BAdI message class ZQUBITON (zqubiton.msag.xml, msgno
+    " 001–006) is referenced as a literal string from the new
+    " ZCL_IM_APEX_* BAdI implementations and does not flow through this
+    " constant. Both message classes coexist on this branch by design.
+  constants GC_MSGID type SYMSGID value 'ZCL_QUBITON_MSG' ##NO_TEXT.       " Message class for translatable messages
     " ── BAL Log Object Constants (SLG0: ZQUBITON) ─────────────────────────
   constants GC_BAL_OBJECT type BALOBJ_D value 'ZQUBITON' ##NO_TEXT.
   constants GC_BAL_SUBOBJECT type BALSUBOBJ value 'ZAPI_CALL' ##NO_TEXT.
