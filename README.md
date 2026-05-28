@@ -35,10 +35,10 @@ ABAP class and integration suite for calling the **QubitOn API** from SAP S/4HAN
 |  | Your Code         |  | ZCL_QUBITON      |               |
 |  | (BAdI, exit,      |->|                  |               |
 |  |  report)          |  | - build_json()   |---- HTTPS ---+|
-|  +-------------------+  | - send_request() |               |
-|                         | - parse_result() |               |
-|  +-------------------+  | - log_api_call() |               |
-|  | Business Partner  |  | - handle_result()|               |
+|  +-------------------+  | - build_*_body() |               |
+|                         | - send_request() |               |
+|  +-------------------+  | - validate_*()   |               |
+|  | Business Partner  |  | - log_api_call() |               |
 |  | (BUPA)            |  +------------------+               |
 |  +-------------------+          |                          |
 |          ^                      v                          |
@@ -48,7 +48,7 @@ ABAP class and integration suite for calling the **QubitOn API** from SAP S/4HAN
 |  +-------------------+  +------------------+               |
 |                                                             |
 |  +--------------+                                           |
-|  | SM59 / BTP   |--- RFC Destination "QubitOn" ---+        |
+|  | SM59 / BTP   |--- RFC Destination "QUBITON" ---+        |
 |  | Destination  | (type G, SSL, port 443)          |        |
 |  +--------------+                                 |        |
 +---------------------------------------------------|----+----+
@@ -60,7 +60,7 @@ ABAP class and integration suite for calling the **QubitOn API** from SAP S/4HAN
                                             +------------------+
 ```
 
-**Data flow**: Your ABAP code -> `ZCL_QUBITON` builds JSON -> sends HTTPS POST/GET via `cl_http_client` through an RFC destination -> receives JSON response -> parses validity -> logs to BAL.
+**Data flow**: Your ABAP code → `ZCL_QUBITON` builds the JSON body via the per-endpoint `build_*_body` helpers → sends HTTPS POST via `cl_http_client` through the `QUBITON` RFC destination → receives JSON response → returns the raw JSON to the caller while writing an audit entry (HTTP status + elapsed time) to SLG1 under object `ZQUBITON`.
 
 ### Supported Integration Layers
 
