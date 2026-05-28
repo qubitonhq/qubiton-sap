@@ -18,8 +18,8 @@ ABAP class and integration suite for calling the **QubitOn API** from SAP S/4HAN
 | Benefit | Description |
 |---------|-------------|
 | **Native SAP integration** | Pure ABAP -- no middleware, no external runtimes, no Java stack. Runs inside the ABAP application server alongside your business logic. |
-| **Zero-code error handling** | Configure stop/warn/silent behavior via constructor parameters. SAP admins control what happens on API errors or validation failures -- no TRY/CATCH needed for standard use. |
-| **Real-time and batch** | BAdIs validate during Business Partner save (real-time). Report `ZAPEX_QUBITON_API` validates existing master data in bulk. Same class -- flip `iv_on_error` and `iv_on_invalid` for silent or strict mode. |
+| **Predictable error surface** | The BAdI implementations (`ZCL_IM_APEX_ADDR_CHECK`, `ZCL_IM_APEX_BANK_CHECK`) append entries to `et_return` with message class `ZQUBITON`. Score = 100 → success (`type = 'S'`); score < 100 or no score field in the response → error (`type = 'E'`) and the BP save is blocked. |
+| **Real-time and batch** | BAdIs validate during Business Partner save (real-time). Report `ZAPEX_QUBITON_API` validates existing master data in bulk. Both paths share the same `ZCL_QUBITON` class — set `iv_log_enabled = abap_false` in the report for quiet batch runs. |
 | **Audit trail built in** | Every API call is logged to SAP Application Log (SLG1) with method, path, HTTP status, and elapsed time. Viewable via SLG1 -- no custom logging code. |
 | **ABAP types for BPP data** | Native `TY_ADRC`, `TY_BANK`, `TY_TAX` structures for direct mapping to Business Partner address, bank, and tax data. |
 | **abapGit deployable** | Full abapGit-compatible package structure. One-click import into any ABAP system. |
@@ -128,24 +128,45 @@ DATA(ls_tax) = VALUE zcl_qubiton=>ty_tax(
 
 ## Quick Start
 
-```abap
-" 1. Create instance with your API key
-DATA(lo_api) = NEW zcl_qubiton( iv_apikey = 'your-api-key' ).
+The public surface of `ZCL_QUBITON` is exposed as `class-methods` (static), so
+calls do not require instantiation. The class-data API key can be set once
+at session start (via `CONSTRUCTOR` or by direct assignment) and reused
+across every validate call in the same work process.
 
-" 2. Validate an address
-TRY.
-    DATA(lv_result) = lo_api->validate_address(
-      iv_address_line1 = '123 Main St'
-      iv_city          = 'Springfield'
-      iv_state         = 'IL'
-      iv_postal_code   = '62701'
-      iv_country       = 'US'
-    ).
-    WRITE: / lv_result.
-  CATCH zcx_qubiton INTO DATA(lx_err).
-    WRITE: / 'Error:', lx_err->get_text( ).
-ENDTRY.
+```abap
+" 1. Set the API key once. Either pass it through CONSTRUCTOR ...
+NEW zcl_qubiton( iv_apikey = 'your-api-key' ).
+
+"    ... or assign the class-data directly when you don't need to
+"    construct an instance (BAdI implementations typically do this
+"    in their first call):
+zcl_qubiton=>mv_apikey = 'your-api-key'.
+
+" 2. Validate an address — static call, returns the raw JSON string.
+DATA(lv_result) = zcl_qubiton=>validate_address(
+  iv_address_line1 = '123 Main St'
+  iv_city          = 'Springfield'
+  iv_state         = 'IL'
+  iv_postal_code   = '62701'
+  iv_country       = 'US'
+).
+WRITE: / lv_result.
+
+" 3. Every call writes an audit entry to SLG1 with HTTP status and
+"    elapsed time. View via transaction SLG1, object ZQUBITON.
 ```
+
+The CONSTRUCTOR accepts:
+
+| Parameter | Type | Default | Purpose |
+|-----------|------|---------|---------|
+| `iv_apikey` | `string` | empty | API key (set into `mv_apikey` class-data) |
+| `iv_timeout` | `i` | `30` | HTTP request timeout in seconds |
+| `iv_log_enabled` | `abap_bool` | `'X'` | Set to `abap_false` to suppress SLG1 logging |
+
+The class is `final` and exposes only static methods after construction, so
+you don't need to keep the reference around — calls go through the class
+name (`zcl_qubiton=>...`).
 
 Get your API key at [www.qubiton.com](https://www.qubiton.com/auth/register).
 
@@ -177,12 +198,12 @@ Get your API key at [www.qubiton.com](https://www.qubiton.com/auth/register).
 
 ## SAP Integration Points
 
-| Integration Point | Example | Recommended Config |
-|-------------------|---------|---------------------|
-| **Business Partner create/change (BP)** | Real-time address validation during BP save | `on_error='W'`, `on_invalid='E'` |
-| **Vendor master (XK01/XK02)** | Address + bank check on vendor save via address BAdI | `on_error='W'`, `on_invalid='E'` |
-| **Customer master update** | Tax number format check | `on_error='W'`, `on_invalid='W'` |
-| **Batch data cleanse** | Validate 10,000 existing BP records overnight | `on_error='S'`, `on_invalid='S'` |
+| Integration Point | Example | Notes |
+|-------------------|---------|-------|
+| **Business Partner create/change (BP)** | Real-time address validation during BP save | Wired through `ZCL_IM_APEX_ADDR_CHECK` (BAdI `BUPA_ADDR_CHECK`) — fail-closed: score < 100 or no score in response blocks the save with message `ZQUBITON-001`. |
+| **Vendor master (XK01/XK02)** | Bank account + tax number check on vendor save | `ZCL_IM_APEX_BANK_CHECK` (BAdI `BUPA_BANK_CHECK`) calls `validate_bank_pro`, then `validate_tax` if a tax record exists for the partner. |
+| **Customer master update** | Tax number format check | Same BAdI path as vendor master, gated by activity `'02'`. |
+| **Batch data cleanse** | Validate existing BP records overnight | `ZAPEX_QUBITON_API` ALV report. Select by partner range / created-on / role, choose Address / Bank / Tax mode, run interactively or via SM36 batch job. |
 
 ## License
 

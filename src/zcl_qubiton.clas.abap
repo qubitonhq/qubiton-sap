@@ -83,7 +83,11 @@ public section.
     tt_result TYPE STANDARD TABLE OF ty_result WITH EMPTY KEY .
 
   class-data MV_TIMEOUT type I .
-  class-data MV_APIKEY type STRING value '<APIKEY>' ##NO_TEXT.
+    " API key — set at runtime via CONSTRUCTOR or by direct assignment
+    " before the first call. Default is empty; an unset key causes the
+    " API to return 401, which is logged to SLG1 and surfaced to the
+    " BAdI caller. Never commit a real key to source.
+  class-data MV_APIKEY type STRING value '' ##NO_TEXT.
     " ── JSON Field Type Constants ───────────────────────────────────────────
   constants GC_TYPE_STRING type CHAR1 value 'S' ##NO_TEXT.       " Default — JSON string (quoted)
   constants GC_TYPE_NUMBER type CHAR1 value 'N' ##NO_TEXT.       " JSON number (unquoted)
@@ -96,8 +100,11 @@ public section.
   constants GC_ON_INVALID_STOP type CHAR1 value 'E' ##NO_TEXT.       " Block save when validation returns isValid=false
   constants GC_ON_INVALID_WARN type CHAR1 value 'W' ##NO_TEXT.       " Warn but allow save
   constants GC_ON_INVALID_SILENT type CHAR1 value 'S' ##NO_TEXT.       " Silent — caller checks result
-    " ── Message Class Constants (SE91: ZCL_QUBITON_MSG) ───────────────────
-  constants GC_MSGID type SYMSGID value 'ZCL_QUBITON_MSG' ##NO_TEXT.       " Message class for translatable messages
+    " ── Message Class Constants (SE91: ZQUBITON) ─────────────────────────
+    " ARBGB must match the .msag.xml file shipped with the package
+    " (zqubiton.msag.xml). Changing one without the other will cause
+    " log_api_call() to raise "unknown message id" at runtime.
+  constants GC_MSGID type SYMSGID value 'ZQUBITON' ##NO_TEXT.       " Message class for translatable messages
     " ── BAL Log Object Constants (SLG0: ZQUBITON) ─────────────────────────
   constants GC_BAL_OBJECT type BALOBJ_D value 'ZQUBITON' ##NO_TEXT.
   constants GC_BAL_SUBOBJECT type BALSUBOBJ value 'ZAPI_CALL' ##NO_TEXT.
@@ -106,7 +113,11 @@ public section.
   class-data MV_ON_ERROR type CHAR1 .
   class-data MV_ON_INVALID type CHAR1 .
   class-data MV_CHECK_AUTH type ABAP_BOOL .
-  class-data MV_LOG_ENABLED type ABAP_BOOL .
+    " Default log-enabled = 'X' so that class-method callers (BAdI
+    " implementations and the ZAPEX_QUBITON_API report — neither of
+    " which instantiates ZCL_QUBITON) still produce SLG1 entries.
+    " Set to abap_false via CONSTRUCTOR to suppress logging.
+  class-data MV_LOG_ENABLED type ABAP_BOOL value 'X' ##NO_TEXT.
   class-data MV_KEEP_ALIVE type ABAP_BOOL .
 *    DATA mv_timeout      TYPE i.
   class-data MV_LOG_HANDLE type BALLOGHNDL .
@@ -138,7 +149,7 @@ public section.
       CX_ROOT .
   class-methods POST
     importing
-      !IV_PATH type STRING default '/api/address/validate?apikey=<APIKEY>'
+      !IV_PATH type STRING default '/api/address/validate'
       !IV_BODY type STRING
     returning
       value(RV_JSON) type STRING .
@@ -250,11 +261,12 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
   METHOD application_log.
     DATA: ls_str_log    TYPE bal_s_log,
           lv_timestamp  TYPE tzntstmps,
-          lv_timezone   TYPE timezone VALUE 'UTC+8',
           lv_log_handle TYPE balloghndl,
           lv_message type char255,
           lv_msgtyp     TYPE symsgty.
-    CONVERT DATE sy-datum TIME sy-uzeit INTO TIME STAMP lv_timestamp TIME ZONE lv_timezone.
+    " Use the user's logon time zone so external IDs match the local
+    " timestamp the customer sees in SLG1 across all geographies.
+    CONVERT DATE sy-datum TIME sy-uzeit INTO TIME STAMP lv_timestamp TIME ZONE sy-zonlo.
     DATA(lv_externalid) = |{ lv_timestamp }| && |{ iv_partner }|.
     ls_str_log-extnumber = lv_externalid.
     CONDENSE ls_str_log-extnumber.
@@ -271,7 +283,8 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
         OTHERS                  = 2.
     IF sy-subrc = 0.
        DATA(lv_msg) = |{ mv_code }| && |{ mv_reason }| &&  |{ iv_partner }|.
-      IF mv_code < 200 OR mv_code  >= 300.
+      " HTTP 2xx => success message type; everything else => error.
+      IF mv_code >= 200 AND mv_code < 300.
         lv_msgtyp = 'S'.
       ELSE.
         lv_msgtyp = 'E'.
@@ -297,8 +310,16 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
       ENDIF.
 
     ENDIF.
+    " Response-body dump to the application-server filesystem at
+    " /usr/sap/trans/QubitOn/. The directory must be pre-created by
+    " Basis with write access for the adm user; if it doesn't exist,
+    " OPEN DATASET sets sy-subrc <> 0 and rv_path stays empty, so the
+    " ALV "File Path" column simply shows blank and the rest of the
+    " report continues normally. Consider making this opt-in via a
+    " class-data flag in a follow-up if high-volume batch runs need
+    " to skip the per-call file write.
     IF zcl_qubiton=>mv_json IS NOT INITIAL.
-      DATA(lv_ap_server_path) = |/usr/sap/trans/Apex/| && |{ lv_externalid }| && |.txt|.
+      DATA(lv_ap_server_path) = |/usr/sap/trans/QubitOn/| && |{ lv_externalid }| && |.txt|.
       OPEN DATASET lv_ap_server_path FOR OUTPUT IN TEXT MODE
                         ENCODING DEFAULT
                         IGNORING CONVERSION ERRORS MESSAGE lv_msg.
@@ -471,6 +492,11 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
 
 
   METHOD get_bank_details.
+    " LEFT JOIN dfkkbptaxnum so BPs that have a bank record but no
+    " tax-number entry are still included in the result set — bank
+    " validation must not be gated on tax-record presence. The tax
+    " fields stay empty for those rows; the report fills them when
+    " available and otherwise skips the tax-validate hop.
     SELECT
       b~partner,
      bk~banks,
@@ -483,8 +509,8 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
       t~taxtype,
       t~taxnum
      FROM but000 AS b
-     INNER JOIN dfkkbptaxnum AS t ON b~partner = t~partner
      INNER JOIN but0bk AS bk ON b~partner = bk~partner
+     LEFT JOIN dfkkbptaxnum AS t ON b~partner = t~partner
      LEFT JOIN bnka AS bn ON bk~banks = bn~banks AND bk~bankl = bn~bankl
      INTO TABLE @mt_bank
      WHERE b~partner IN @ir_partner.
@@ -588,8 +614,21 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
   method LOG_API_CALL.
    DATA: ls_msg TYPE bal_s_msg.
 
-    IF mv_log_enabled = abap_false OR mv_log_handle IS INITIAL.
+    IF mv_log_enabled = abap_false.
       RETURN.
+    ENDIF.
+
+    " Lazy open: class-method callers (BAdI implementations and
+    " ZAPEX_QUBITON_API) skip CONSTRUCTOR, so the log handle is
+    " initial. Open on demand to create the SLG1 log header
+    " transparently on the first API call.
+    IF mv_log_handle IS INITIAL.
+      open_log( ).
+      IF mv_log_handle IS INITIAL.
+        " open_log clears the handle on BAL_LOG_CREATE failure — nothing
+        " more we can do here; skip the log entry silently.
+        RETURN.
+      ENDIF.
     ENDIF.
 
     ls_msg-msgty = iv_msgtype.
@@ -768,10 +807,10 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
 *          error_text = |{ iv_method } { iv_path }: send failed (sy-subrc={ lv_subrc_send })|.
     ENDIF.
 
-    " Receive (with timeout)
+    " IF_HTTP_CLIENT~RECEIVE does not accept a TIMEOUT importing
+    " parameter — the request timeout set on SEND (mv_timeout) covers
+    " the full round-trip including response read.
     lo_client->receive(
-*      EXPORTING
-*        timeout                    = mv_timeout
       EXCEPTIONS
         http_communication_failure = 1
         http_invalid_state         = 2
@@ -829,7 +868,9 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
 
   METHOD validate_address.
 
-    rv_json = post( iv_path = '/api/address/validate?apikey=<APIKEY>'
+    " Authentication is via the 'apikey' header set by send_request().
+    " The path stays a clean URL with no query-string credentials.
+    rv_json = post( iv_path = '/api/address/validate'
                     iv_body = build_address_body(
                       iv_country       = iv_country
                       iv_address_line1 = iv_address_line1

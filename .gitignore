@@ -1,6 +1,8 @@
-# Environment variables and secrets
+# Environment variables and secrets — see .env.example for the template.
+# .env.example is intentionally tracked; real .env files are not.
 .env
 *.env
+!.env.example
 
 # OS files
 .DS_Store

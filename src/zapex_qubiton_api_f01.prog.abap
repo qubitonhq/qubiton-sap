@@ -9,7 +9,10 @@
 *&      --> LV_JSON
 *&---------------------------------------------------------------------*
 FORM read_results.
-  CLEAR: lv_offset.
+  " Reset all output fields on every call — without this, score /
+  " validationPass / Description from the previous iteration would
+  " leak into the current row when the current JSON omits any of them.
+  CLEAR: lv_offset, ls_data.
   FIND FIRST OCCURRENCE OF '"score":' IN lv_json MATCH OFFSET lv_offset.
   IF sy-subrc IS INITIAL.
     CLEAR: lv_result, lv_name, lv_value.
@@ -40,9 +43,15 @@ FORM read_results.
     CONDENSE lv_value NO-GAPS.
     ls_data-Description = lv_value.
   ENDIF.
-  IF ls_data-score(1) = '0' or ls_data-score is initial .
+  " Right-pad before substring so 1-digit scores (e.g. "0") don't
+  " trip CX_SY_RANGE_OUT_OF_BOUNDS on the (3) comparison.
+  DATA(lv_score_padded) = ls_data-score.
+  IF strlen( lv_score_padded ) < 3.
+    lv_score_padded = lv_score_padded && '   '.
+  ENDIF.
+  IF ls_data-score IS INITIAL OR lv_score_padded(1) = '0'.
     ls_data-icon = icon_led_red.
-  ELSEIF ls_data-score(3) = '100'.
+  ELSEIF lv_score_padded(3) = '100'.
     ls_data-icon = icon_led_green.
   ELSE.
     ls_data-icon = icon_led_yellow.

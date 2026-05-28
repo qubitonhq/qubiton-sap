@@ -61,7 +61,14 @@ CLASS ZCL_IM_APEX_ADDR_CHECK IMPLEMENTATION.
         REPLACE ALL OCCURRENCES OF ',' IN lv_value WITH space.
         REPLACE ALL OCCURRENCES OF '#' IN lv_value WITH space.
         CONDENSE lv_value NO-GAPS.
-        IF lv_value(3) NE '100'.
+        " Right-pad before substring so scores returning as 1 or 2 chars
+        " (any value 0..99) don't trip CX_SY_RANGE_OUT_OF_BOUNDS on the
+        " lv_score(3) comparison.
+        DATA(lv_score) = lv_value.
+        IF strlen( lv_value ) < 3.
+          lv_score = lv_score && '   '.
+        ENDIF.
+        IF lv_score(3) NE '100'.
 *          ls_return-message_v1 = 'QubitOn Address Validation Failed - Enter Valid Address'.
           ls_return-id = 'ZQUBITON'.
           ls_return-number = '001'.
@@ -73,6 +80,16 @@ CLASS ZCL_IM_APEX_ADDR_CHECK IMPLEMENTATION.
           ls_return-type = 'S'.
           APPEND ls_return TO et_return.
         ENDIF.
+      ELSE.
+        " No score field in the response (network failure, auth failure,
+        " or unexpected JSON shape). Fail closed: surface an error so the
+        " BP save is blocked rather than silently accepting unverified
+        " data. SLG1 / ZQUBITON has the full request/response for triage.
+        ls_return-id      = 'ZQUBITON'.
+        ls_return-number  = '001'.
+        ls_return-type    = 'E'.
+        ls_return-message = 'QubitOn address validation could not be verified — check SLG1 / ZQUBITON for the API response.'.
+        APPEND ls_return TO et_return.
       ENDIF.
     ENDIF.
   ENDMETHOD.
