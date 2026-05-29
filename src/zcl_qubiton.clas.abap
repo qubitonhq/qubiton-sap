@@ -82,18 +82,8 @@ public section.
   types:
     tt_result TYPE STANDARD TABLE OF ty_result WITH EMPTY KEY .
 
-    " Default HTTP request timeout in seconds. Class-method callers
-    " (BAdI implementations and ZAPEX_QUBITON_API report) skip
-    " CONSTRUCTOR, so without a class-data default this would stay 0 —
-    " IF_HTTP_CLIENT~SEND treats 0 as "wait forever", which would freeze
-    " the calling work process if the API stops responding. 30s matches
-    " the CONSTRUCTOR's iv_timeout default.
-  class-data MV_TIMEOUT type I value 30 ##NO_TEXT.
-    " API key — set at runtime via CONSTRUCTOR or by direct assignment
-    " before the first call. Default is empty; an unset key causes the
-    " API to return 401, which is logged to SLG1 and surfaced to the
-    " BAdI caller. Never commit a real key to source.
-  class-data MV_APIKEY type STRING value '' ##NO_TEXT.
+  class-data MV_TIMEOUT type I .
+  class-data MV_APIKEY type STRING value '<APIKEY>' ##NO_TEXT.
     " ── JSON Field Type Constants ───────────────────────────────────────────
   constants GC_TYPE_STRING type CHAR1 value 'S' ##NO_TEXT.       " Default — JSON string (quoted)
   constants GC_TYPE_NUMBER type CHAR1 value 'N' ##NO_TEXT.       " JSON number (unquoted)
@@ -106,11 +96,8 @@ public section.
   constants GC_ON_INVALID_STOP type CHAR1 value 'E' ##NO_TEXT.       " Block save when validation returns isValid=false
   constants GC_ON_INVALID_WARN type CHAR1 value 'W' ##NO_TEXT.       " Warn but allow save
   constants GC_ON_INVALID_SILENT type CHAR1 value 'S' ##NO_TEXT.       " Silent — caller checks result
-    " ── Message Class Constant (SE91: ZQUBITON) ──────────────────────────
-    " ARBGB must match zqubiton.msag.xml. Msgnos 001-009 cover the BAdI
-    " return-row messages; msgno 010 is the BAL log entry written by
-    " LOG_API_CALL ("&1 &2 completed in &3 ms (HTTP &4)").
-  constants GC_MSGID type SYMSGID value 'ZQUBITON' ##NO_TEXT.       " Message class for translatable messages
+    " ── Message Class Constants (SE91: ZCL_QUBITON_MSG) ───────────────────
+  constants GC_MSGID type SYMSGID value 'ZCL_QUBITON_MSG' ##NO_TEXT.       " Message class for translatable messages
     " ── BAL Log Object Constants (SLG0: ZQUBITON) ─────────────────────────
   constants GC_BAL_OBJECT type BALOBJ_D value 'ZQUBITON' ##NO_TEXT.
   constants GC_BAL_SUBOBJECT type BALSUBOBJ value 'ZAPI_CALL' ##NO_TEXT.
@@ -119,11 +106,7 @@ public section.
   class-data MV_ON_ERROR type CHAR1 .
   class-data MV_ON_INVALID type CHAR1 .
   class-data MV_CHECK_AUTH type ABAP_BOOL .
-    " Default log-enabled = 'X' so that class-method callers (BAdI
-    " implementations and the ZAPEX_QUBITON_API report — neither of
-    " which instantiates ZCL_QUBITON) still produce SLG1 entries.
-    " Set to abap_false via CONSTRUCTOR to suppress logging.
-  class-data MV_LOG_ENABLED type ABAP_BOOL value 'X' ##NO_TEXT.
+  class-data MV_LOG_ENABLED type ABAP_BOOL .
   class-data MV_KEEP_ALIVE type ABAP_BOOL .
 *    DATA mv_timeout      TYPE i.
   class-data MV_LOG_HANDLE type BALLOGHNDL .
@@ -150,7 +133,9 @@ public section.
       !IV_POSTAL_CODE type STRING optional
       !IV_COMPANY_NAME type STRING optional
     returning
-      value(RV_JSON) type STRING .
+      value(RV_JSON) type STRING
+    raising
+      CX_ROOT .
   class-methods POST
     importing
       !IV_PATH type STRING default '/api/address/validate'
@@ -193,25 +178,6 @@ public section.
       !IV_ELAPSED type I
       !IV_MSGTYPE type SYMSGTY default 'I' .
   class-methods SAVE_LOG .
-  "! <p class="shorttext synchronized">Extract the top-level "score" field from a JSON response</p>
-  "!
-  "! Parses the API response and reads the top-level "score" field. Use
-  "! instead of FIND OFFSET on the raw JSON string — a substring scan
-  "! returns the first occurrence, which can be a nested "score" inside
-  "! a "detail" / "components" object, leading the BAdI to compare the
-  "! wrong number against 100.
-  "!
-  "! @parameter iv_json   | Raw JSON body returned by validate_*.
-  "! @parameter ev_found  | abap_true when the top-level "score" field
-  "!                       is present and parseable as an integer.
-  "! @parameter ev_score  | The score value (0..100). Only valid when
-  "!                       ev_found = abap_true.
-  class-methods EXTRACT_SCORE_FROM_JSON
-    importing
-      !IV_JSON type STRING
-    exporting
-      !EV_FOUND type ABAP_BOOL
-      !EV_SCORE type I .
   class-methods GET_BP_ADDRESS
     importing
       !IR_PARTNER type TR_PARTNER .
@@ -284,12 +250,11 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
   METHOD application_log.
     DATA: ls_str_log    TYPE bal_s_log,
           lv_timestamp  TYPE tzntstmps,
+          lv_timezone   TYPE timezone VALUE 'UTC+8',
           lv_log_handle TYPE balloghndl,
           lv_message type char255,
           lv_msgtyp     TYPE symsgty.
-    " Use the user's logon time zone so external IDs match the local
-    " timestamp the customer sees in SLG1 across all geographies.
-    CONVERT DATE sy-datum TIME sy-uzeit INTO TIME STAMP lv_timestamp TIME ZONE sy-zonlo.
+    CONVERT DATE sy-datum TIME sy-uzeit INTO TIME STAMP lv_timestamp TIME ZONE lv_timezone.
     DATA(lv_externalid) = |{ lv_timestamp }| && |{ iv_partner }|.
     ls_str_log-extnumber = lv_externalid.
     CONDENSE ls_str_log-extnumber.
@@ -306,8 +271,7 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
         OTHERS                  = 2.
     IF sy-subrc = 0.
        DATA(lv_msg) = |{ mv_code }| && |{ mv_reason }| &&  |{ iv_partner }|.
-      " HTTP 2xx => success message type; everything else => error.
-      IF mv_code >= 200 AND mv_code < 300.
+      IF mv_code < 200 OR mv_code  >= 300.
         lv_msgtyp = 'S'.
       ELSE.
         lv_msgtyp = 'E'.
@@ -333,16 +297,8 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
       ENDIF.
 
     ENDIF.
-    " Response-body dump to the application-server filesystem at
-    " /usr/sap/trans/QubitOn/. The directory must be pre-created by
-    " Basis with write access for the adm user; if it doesn't exist,
-    " OPEN DATASET sets sy-subrc <> 0 and rv_path stays empty, so the
-    " ALV "File Path" column simply shows blank and the rest of the
-    " report continues normally. Consider making this opt-in via a
-    " class-data flag in a follow-up if high-volume batch runs need
-    " to skip the per-call file write.
     IF zcl_qubiton=>mv_json IS NOT INITIAL.
-      DATA(lv_ap_server_path) = |/usr/sap/trans/QubitOn/| && |{ lv_externalid }| && |.txt|.
+      DATA(lv_ap_server_path) = |/usr/sap/trans/Apex/| && |{ lv_externalid }| && |.txt|.
       OPEN DATASET lv_ap_server_path FOR OUTPUT IN TEXT MODE
                         ENCODING DEFAULT
                         IGNORING CONVERSION ERRORS MESSAGE lv_msg.
@@ -466,53 +422,6 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD extract_score_from_json.
-
-    " Parse the API response and read the top-level "score" field.
-    " Uses /ui2/cl_json so the lookup is structural: a "score" nested
-    " inside another object (e.g. {"detail":{"score":42},"score":100})
-    " can't shadow the top-level field. The probe structure is typed
-    " with score as STRING so we can tell an absent field apart from
-    " a present "score": 0 — both deserialize to ABAP 0 if typed as I.
-
-    CLEAR: ev_found, ev_score.
-
-    IF iv_json IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    DATA: BEGIN OF ls_probe,
-            score TYPE string,
-          END OF ls_probe.
-
-    TRY.
-        /ui2/cl_json=>deserialize(
-          EXPORTING json = iv_json
-          CHANGING  data = ls_probe ).
-      CATCH cx_root.
-        " Malformed or non-JSON response. Leave ev_found = abap_false
-        " so the caller treats it the same as "score field absent".
-        RETURN.
-    ENDTRY.
-
-    IF ls_probe-score IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    " Convert the string form to integer. A non-numeric score (the
-    " API should not return one) is treated the same as a missing
-    " field so the caller's fail-closed branch surfaces a clearer
-    " message — "could not be verified" rather than the generic
-    " "validation failed - enter valid …" intended for score < 100.
-    TRY.
-        ev_score = ls_probe-score.
-        ev_found = abap_true.
-      CATCH cx_sy_conversion_no_number.
-        CLEAR ev_score.   " ev_found stays abap_false
-    ENDTRY.
-  ENDMETHOD.
-
-
   METHOD escape_json_value.
 
     " Escape a string for safe embedding in a JSON value.
@@ -562,11 +471,6 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
 
 
   METHOD get_bank_details.
-    " LEFT JOIN dfkkbptaxnum so BPs that have a bank record but no
-    " tax-number entry are still included in the result set — bank
-    " validation must not be gated on tax-record presence. The tax
-    " fields stay empty for those rows; the report fills them when
-    " available and otherwise skips the tax-validate hop.
     SELECT
       b~partner,
      bk~banks,
@@ -579,8 +483,8 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
       t~taxtype,
       t~taxnum
      FROM but000 AS b
+     INNER JOIN dfkkbptaxnum AS t ON b~partner = t~partner
      INNER JOIN but0bk AS bk ON b~partner = bk~partner
-     LEFT JOIN dfkkbptaxnum AS t ON b~partner = t~partner
      LEFT JOIN bnka AS bn ON bk~banks = bn~banks AND bk~bankl = bn~bankl
      INTO TABLE @mt_bank
      WHERE b~partner IN @ir_partner.
@@ -684,21 +588,8 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
   method LOG_API_CALL.
    DATA: ls_msg TYPE bal_s_msg.
 
-    IF mv_log_enabled = abap_false.
+    IF mv_log_enabled = abap_false OR mv_log_handle IS INITIAL.
       RETURN.
-    ENDIF.
-
-    " Lazy open: class-method callers (BAdI implementations and
-    " ZAPEX_QUBITON_API) skip CONSTRUCTOR, so the log handle is
-    " initial. Open on demand to create the SLG1 log header
-    " transparently on the first API call.
-    IF mv_log_handle IS INITIAL.
-      open_log( ).
-      IF mv_log_handle IS INITIAL.
-        " open_log clears the handle on BAL_LOG_CREATE failure — nothing
-        " more we can do here; skip the log entry silently.
-        RETURN.
-      ENDIF.
     ENDIF.
 
     ls_msg-msgty = iv_msgtype.
@@ -810,11 +701,6 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
       IF sy-subrc <> 0 OR lo_client IS NOT BOUND.
         log_api_call( iv_method = iv_method iv_path = iv_path iv_status = 0 iv_elapsed = 0 iv_msgtype = 'E' ).
         save_log( ).
-        " Return early — without lo_client the subsequent set_request_uri /
-        " send / receive calls would raise CX_SY_REF_IS_INITIAL. The caller
-        " receives an empty rv_json; downstream BAdI code treats an empty
-        " response as "score not found" and fails closed.
-        RETURN.
 *        RAISE EXCEPTION TYPE zcx_qubiton
 *          EXPORTING
 *            error_text = |Failed to create HTTP client for destination "{ mv_destination }" (sy-subrc={ sy-subrc })|.
@@ -874,22 +760,18 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
       lo_client->close( ).
       CLEAR mo_client.
       GET RUN TIME FIELD lv_end.
-      lv_elapsed = ( lv_end - lv_start ) / 1000. " microseconds -> milliseconds
+      lv_elapsed = ( lv_end - lv_start ) / 1000. " microseconds → milliseconds
       log_api_call( iv_method = iv_method iv_path = iv_path iv_status = 0 iv_elapsed = lv_elapsed iv_msgtype = 'E' ).
       save_log( ).
-      " Return early — once the client is closed and cleared, the
-      " subsequent receive() / get_status() / get_cdata() calls would
-      " raise CX_SY_REF_IS_INITIAL. The caller gets an empty rv_json.
-      RETURN.
 *      RAISE EXCEPTION TYPE zcx_qubiton
 *        EXPORTING
 *          error_text = |{ iv_method } { iv_path }: send failed (sy-subrc={ lv_subrc_send })|.
     ENDIF.
 
-    " IF_HTTP_CLIENT~RECEIVE does not accept a TIMEOUT importing
-    " parameter — the request timeout set on SEND (mv_timeout) covers
-    " the full round-trip including response read.
+    " Receive (with timeout)
     lo_client->receive(
+*      EXPORTING
+*        timeout                    = mv_timeout
       EXCEPTIONS
         http_communication_failure = 1
         http_invalid_state         = 2
@@ -904,9 +786,6 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
       lv_elapsed = ( lv_end - lv_start ) / 1000.
       log_api_call( iv_method = iv_method iv_path = iv_path iv_status = 0 iv_elapsed = lv_elapsed iv_msgtype = 'E' ).
       save_log( ).
-      " Return early — after close(), get_status() / get_cdata() on the
-      " response object would raise CX_SY_REF_IS_INITIAL.
-      RETURN.
 *      RAISE EXCEPTION TYPE zcx_qubiton
 *        EXPORTING
 *          error_text = |{ iv_method } { iv_path }: receive failed (sy-subrc={ lv_subrc_recv })|.
@@ -937,13 +816,10 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
 *        EXPORTING
 *          http_status = lv_status
 *          error_text  = |{ iv_method } { iv_path }: HTTP { lv_status } { lv_reason }|.
-    ELSE.
-      " Success — log informational. Wrapped in ELSE so a non-2xx response
-      " emits a single 'E' entry rather than a paired 'E' + 'I' (the latter
-      " would read "completed in X ms (HTTP 5xx)" and contradict the
-      " preceding error log).
-      log_api_call( iv_method = iv_method iv_path = iv_path iv_status = lv_status iv_elapsed = lv_elapsed iv_msgtype = 'I' ).
     ENDIF.
+
+    " Success — log informational
+    log_api_call( iv_method = iv_method iv_path = iv_path iv_status = lv_status iv_elapsed = lv_elapsed iv_msgtype = 'I' ).
 
     " Persist log entries after each call (ensures SLG1 visibility)
     save_log( ).
@@ -953,8 +829,6 @@ CLASS ZCL_QUBITON IMPLEMENTATION.
 
   METHOD validate_address.
 
-    " Authentication is via the 'apikey' header set by send_request().
-    " The path stays a clean URL with no query-string credentials.
     rv_json = post( iv_path = '/api/address/validate'
                     iv_body = build_address_body(
                       iv_country       = iv_country

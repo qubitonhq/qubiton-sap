@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <abapGit version="v1.0.0" serializer="LCL_OBJECT_MSAG" serializer_version="v1.0.0">
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
@@ -43,30 +43,6 @@
      <ARBGB>ZQUBITON</ARBGB>
      <MSGNR>006</MSGNR>
      <TEXT>QubitOn Tax Validation Passed</TEXT>
-    </T100>
-    <T100>
-     <SPRSL>E</SPRSL>
-     <ARBGB>ZQUBITON</ARBGB>
-     <MSGNR>007</MSGNR>
-     <TEXT>QubitOn address validation could not be verified - see SLG1 / ZQUBITON</TEXT>
-    </T100>
-    <T100>
-     <SPRSL>E</SPRSL>
-     <ARBGB>ZQUBITON</ARBGB>
-     <MSGNR>008</MSGNR>
-     <TEXT>QubitOn bank validation could not be verified - see SLG1 / ZQUBITON</TEXT>
-    </T100>
-    <T100>
-     <SPRSL>E</SPRSL>
-     <ARBGB>ZQUBITON</ARBGB>
-     <MSGNR>009</MSGNR>
-     <TEXT>QubitOn tax validation could not be verified - see SLG1 / ZQUBITON</TEXT>
-    </T100>
-    <T100>
-     <SPRSL>E</SPRSL>
-     <ARBGB>ZQUBITON</ARBGB>
-     <MSGNR>010</MSGNR>
-     <TEXT>QubitOn API call: &amp;1 &amp;2 completed in &amp;3 ms (HTTP &amp;4)</TEXT>
     </T100>
    </T100>
   </asx:values>

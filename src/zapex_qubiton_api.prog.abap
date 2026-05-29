@@ -100,6 +100,10 @@ DATA: lt_partner TYPE RANGE OF partner,
       ls_bank    TYPE ty_bank,
       gt_tax     TYPE TABLE OF ty_tax,
       ls_tax     TYPE ty_tax,
+      lv_result  TYPE c LENGTH 40,
+      lv_name    TYPE c LENGTH 20,
+      lv_value   TYPE c LENGTH 20,
+      lv_offset  TYPE i,
       lv_path    TYPE string.
 *----------------------------------------------------------------------*
 * Selection Screen
@@ -230,12 +234,7 @@ START-OF-SELECTION.
       ENDCASE.
       iv_country      = ls_tax_t-country.
       iv_company_name = ls_tax_t-name_org1.
-      " businessEntityType is left empty in the report. The BP master
-      " data model has no direct entity-type attribute — the company
-      " name is not a substitute. Customers that maintain a custom
-      " mapping (e.g. via BU_GROUP or BPKIND) can populate this field
-      " from that mapping before the validate_tax call.
-      CLEAR iv_business_entity_type.
+      iv_business_entity_type = ls_tax_t-name_org1.
       iv_entity_name = ls_tax_t-name_org2.
       zcl_qubiton=>validate_tax(
         EXPORTING

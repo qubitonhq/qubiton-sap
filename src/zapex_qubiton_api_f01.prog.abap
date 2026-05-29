@@ -9,44 +9,40 @@
 *&      --> LV_JSON
 *&---------------------------------------------------------------------*
 FORM read_results.
-  " Reset all output fields on every call — without this, score /
-  " validationPass / Description from the previous iteration would
-  " leak into the current row when the current JSON omits any of them.
-  CLEAR ls_data.
-
-  " Parse the top-level response with /ui2/cl_json. A typed probe
-  " structure makes the lookup field-name aware — a nested "score"
-  " inside a "detail" or "components" object can't shadow the top-
-  " level field, which the previous FIND-OFFSET approach could not
-  " guarantee.
-  DATA: BEGIN OF ls_probe,
-          score                 TYPE string,
-          validationpass        TYPE string,
-          validationdescription TYPE string,
-        END OF ls_probe.
-
-  TRY.
-      /ui2/cl_json=>deserialize(
-        EXPORTING json = lv_json
-        CHANGING  data = ls_probe ).
-    CATCH cx_root.
-      " Malformed or non-JSON response — leave ls_data initial; the
-      " caller sees an empty row and the LED below renders red.
-  ENDTRY.
-
-  ls_data-score          = ls_probe-score.
-  ls_data-validationpass = ls_probe-validationpass.
-  ls_data-description    = ls_probe-validationdescription.
-
-  " Right-pad before substring so 1-digit scores (e.g. "0") don't
-  " trip CX_SY_RANGE_OUT_OF_BOUNDS on the (3) comparison.
-  DATA(lv_score_padded) = ls_data-score.
-  IF strlen( lv_score_padded ) < 3.
-    lv_score_padded = lv_score_padded && '   '.
+  CLEAR: lv_offset.
+  FIND FIRST OCCURRENCE OF '"score":' IN lv_json MATCH OFFSET lv_offset.
+  IF sy-subrc IS INITIAL.
+    CLEAR: lv_result, lv_name, lv_value.
+    lv_result = lv_json+lv_offset(15).
+    SPLIT lv_result AT ':' INTO lv_name lv_value.
+    REPLACE ALL OCCURRENCES OF ',' IN lv_value WITH space.
+    REPLACE ALL OCCURRENCES OF '#' IN lv_value WITH space.
+    CONDENSE lv_value NO-GAPS.
+    ls_data-score = lv_value.
   ENDIF.
-  IF ls_data-score IS INITIAL OR lv_score_padded(1) = '0'.
+  FIND FIRST OCCURRENCE OF '"validationPass":' IN lv_json MATCH OFFSET lv_offset.
+  IF sy-subrc IS INITIAL.
+    CLEAR: lv_result, lv_name, lv_value.
+    lv_result = lv_json+lv_offset(30).
+    SPLIT lv_result AT ':' INTO lv_name lv_value.
+    REPLACE ALL OCCURRENCES OF ',' IN lv_value WITH space.
+    REPLACE ALL OCCURRENCES OF '"' IN lv_value WITH space.
+    CONDENSE lv_value NO-GAPS.
+    ls_data-validationPass = lv_value.
+  ENDIF.
+  FIND FIRST OCCURRENCE OF '"validationDescription":' IN lv_json MATCH OFFSET lv_offset.
+  IF sy-subrc IS INITIAL.
+    CLEAR: lv_result, lv_name, lv_value.
+    lv_result = lv_json+lv_offset(35).
+    SPLIT lv_result AT ':' INTO lv_name lv_value.
+    REPLACE ALL OCCURRENCES OF ',' IN lv_value WITH space.
+    REPLACE ALL OCCURRENCES OF '"' IN lv_value WITH space.
+    CONDENSE lv_value NO-GAPS.
+    ls_data-Description = lv_value.
+  ENDIF.
+  IF ls_data-score(1) = '0' or ls_data-score is initial .
     ls_data-icon = icon_led_red.
-  ELSEIF lv_score_padded(3) = '100'.
+  ELSEIF ls_data-score(3) = '100'.
     ls_data-icon = icon_led_green.
   ELSE.
     ls_data-icon = icon_led_yellow.
